@@ -1,0 +1,19 @@
+{
+  "name": "my-ssh-plug",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MySSH 插件市场:独立维护与发布的插件仓库",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}
