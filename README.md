@@ -42,6 +42,21 @@ dist/
 把 `dist/` 部署到任意静态地址(如 GitHub Pages / release asset),把
 `registry.json` 的 URL 填进 MySSH 设置 →「插件市场」即可安装 / 更新。
 
+### GitHub Pages 自动部署
+
+本仓库已配置 [`.github/workflows/pages.yml`](.github/workflows/pages.yml):
+push 到 `main` 后自动 `npm run build` 并把 `dist/` 部署到
+`https://chengyunlai.github.io/my-ssh-plug/`。
+
+在 MySSH 设置 →「插件市场」填入:
+
+```text
+https://chengyunlai.github.io/my-ssh-plug/registry.json
+```
+
+发布新版本流程:修改插件 → 升 `version` → `npm run build` 确认产物 → push 到
+`main`(自动部署)→ 客户端点「更新」。
+
 ## 插件开发约束(与核心 docs/PLUGIN.md 一致)
 
 - `react` / `react/jsx-runtime` 必须外部化,由 MySSH 运行时通过 import map 提供,
