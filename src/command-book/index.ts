@@ -7,6 +7,8 @@ export default definePlugin({
   version: '1.1.0',
   description: '终端底部命令搜索条:100 条常用 Linux 命令,输入关键字实时匹配,点击复制',
   author: 'MySSH',
+  category: 'terminal',
+  minAppVersion: '0.1.0',
   builtin: false,
   defaultEnabled: false,
   widget: {

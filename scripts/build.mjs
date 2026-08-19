@@ -14,6 +14,33 @@ const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild')
 
 const registry = { name: 'my-ssh-plug', version: '0.1.0', plugins: [] }
 
+// 官方白名单:official.json 中的插件由构建脚本盖章 official: true,插件自身声明无效
+const officialList = existsSync(path.join(root, 'official.json'))
+  ? (JSON.parse(readFileSync(path.join(root, 'official.json'), 'utf8')).plugins ?? [])
+  : []
+
+// 官方分类表(与核心仓库 docs/PLUGIN.md §5 保持一致)
+const CATEGORIES = new Set(['terminal', 'files', 'tool', 'monitor', 'integration', 'other'])
+const SEMVER = /^\d+\.\d+\.\d+$/
+
+function isOfficial(id, author) {
+  return officialList.some(
+    (o) =>
+      o.id === id && (!o.author || o.author === author)
+  )
+}
+
+function validateManifest(id, m) {
+  if (m.category && !CATEGORIES.has(m.category)) {
+    throw new Error(`插件 ${id}:category 不在官方分类表内:${String(m.category)}`)
+  }
+  for (const k of ['minAppVersion', 'maxAppVersion']) {
+    if (m[k] && !SEMVER.test(m[k])) {
+      throw new Error(`插件 ${id}:${k} 不是合法 semver:${String(m[k])}`)
+    }
+  }
+}
+
 for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
   if (!dir.isDirectory()) continue
   const id = dir.name
@@ -42,9 +69,11 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
   )
 
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  validateManifest(id, manifest)
   const entryBuf = readFileSync(outFile)
   registry.plugins.push({
     ...manifest,
+    official: isOfficial(id, manifest.author),
     entry: `${id}/entry.js`,
     sha256: createHash('sha256').update(entryBuf).digest('hex')
   })
