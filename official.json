@@ -1,3 +1,6 @@
 {
-  "plugins": [{ "id": "command-book", "author": "MySSH" }]
+  "plugins": [
+    { "id": "command-book", "author": "MySSH" },
+    { "id": "wsl-terminal", "author": "MySSH" }
+  ]
 }
