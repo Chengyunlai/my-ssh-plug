@@ -8,6 +8,8 @@ export interface MySshPlugin {
   author?: string
   /** 分类(官方分类表,见核心仓库 docs/PLUGIN.md §5) */
   category?: string
+  /** 支持的平台列表，如 ['win32', 'darwin', 'linux']，不声明则全平台支持 */
+  platforms?: string[]
   /** 最低兼容 MySSH 版本(semver) */
   minAppVersion?: string
   /** 最高兼容 MySSH 版本(可选) */

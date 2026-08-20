@@ -11,7 +11,7 @@ MySSH 的插件市场仓库,与核心仓库([my-ssh](../my-ssh))独立维护、�
 | 插件 | id | 版本 | 分类 | 兼容 | 官方 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
 | 命令手册 | `command-book` | 1.1.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 终端底部命令搜索条:100 条常用 Linux 命令,关键字匹配,点击复制 |
-| WSL 终端 | `wsl-terminal` | 1.0.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 在 MySSH 中打开本地 WSL/Ubuntu 终端(仅 Windows) |
+| WSL 终端 | `wsl-terminal` | 1.0.1 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 在 MySSH 中打开本地 WSL/Ubuntu 终端(仅 Windows) |
 
 ## 目录结构
 
