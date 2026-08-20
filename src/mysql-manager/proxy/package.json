@@ -1,0 +1,15 @@
+{
+  "name": "mysql-websocket-proxy",
+  "version": "1.0.0",
+  "description": "MySQL WebSocket代理服务",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0",
+    "ws": "^8.16.0"
+  }
+}
