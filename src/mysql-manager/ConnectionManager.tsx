@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ConnectionIcon, EditIcon, PlusIcon, PowerIcon, TrashIcon } from './Icons'
 
 interface Connection {
   id: string
@@ -8,6 +9,7 @@ interface Connection {
   user: string
   password: string
   database?: string
+  proxyUrl?: string
 }
 
 interface Props {
@@ -28,12 +30,12 @@ export default function ConnectionManager({
   const [showForm, setShowForm] = useState(false)
   const [editingConn, setEditingConn] = useState<Connection | null>(null)
   const [form, setForm] = useState<Connection>({
-    id: '', name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: ''
+    id: '', name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: 'ws://127.0.0.1:3000'
   })
 
   const handleNew = () => {
     setEditingConn(null)
-    setForm({ id: `conn-${Date.now()}`, name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '' })
+    setForm({ id: `conn-${Date.now()}`, name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: 'ws://127.0.0.1:3000' })
     setShowForm(true)
   }
 
@@ -55,38 +57,37 @@ export default function ConnectionManager({
   }
 
   return (
-    <div className="mysql-sidebar-section">
-      <div className="mysql-sidebar-header">
-        <h3>连接</h3>
+    <div className={`connection-panel ${showForm ? 'editing' : ''}`}>
+      <div className="connection-panel-header">
+        <div className="sidebar-heading"><ConnectionIcon className="sidebar-heading-icon" /><h3>连接</h3><span className="sidebar-heading-count">{connections.length}</span></div>
         {!showForm && (
-          <button className="ssh-btn ssh-btn-sm" onClick={handleNew}>+ 新建</button>
+          <button type="button" className="ssh-btn ssh-btn-sm connection-add" onClick={handleNew} title="新建连接" aria-label="新建连接"><PlusIcon /></button>
         )}
       </div>
 
       {!showForm ? (
-        <div className="mysql-sidebar-body">
+        <div className="connection-list">
           {connections.length === 0 ? (
-            <div className="result-empty" style={{ padding: '24px' }}>暂无连接</div>
+            <div className="connection-empty"><span className="connection-empty-icon">⌁</span><strong>还没有连接</strong><span>保存一个 MySQL 连接开始工作</span></div>
           ) : (
             connections.map((conn) => (
-              <div key={conn.id} className={`conn-card ${activeConnection?.id === conn.id ? 'active' : ''}`}>
-                <div className="conn-card-header">
-                  <div className="conn-card-info">
-                    <div className="conn-card-name">{conn.name || conn.host}</div>
-                    <div className="conn-card-detail">{conn.user}@{conn.host}:{conn.port}</div>
-                  </div>
-                  <div className="conn-card-actions">
-                    <button className="ssh-btn ssh-btn-sm ssh-btn-primary" onClick={() => onConnect(conn)} disabled={loading}>连接</button>
-                    <button className="ssh-btn ssh-btn-sm" onClick={() => handleEdit(conn)}>编辑</button>
-                    <button className="ssh-btn ssh-btn-sm ssh-btn-danger" onClick={() => onDelete(conn.id)}>删除</button>
-                  </div>
+              <div key={conn.id} className={`connection-row ${activeConnection?.id === conn.id ? 'active' : ''}`}>
+                <span className={`conn-card-dot ${activeConnection?.id === conn.id ? 'online' : ''}`} />
+                <div className="connection-row-info">
+                  <div className="conn-card-name">{conn.name || conn.host}</div>
+                  <div className="conn-card-detail">{conn.user}@{conn.host}:{conn.port}</div>
+                </div>
+                <div className="connection-row-actions">
+                  {activeConnection?.id === conn.id ? <button type="button" className="connection-icon-button" title="断开" aria-label={`断开 ${conn.name || conn.host}`} onClick={onDisconnect}><PowerIcon /></button> : <button type="button" className="connection-icon-button connect" title="连接" aria-label={`连接 ${conn.name || conn.host}`} onClick={() => onConnect(conn)} disabled={loading}><PowerIcon /></button>}
+                  <button type="button" className="connection-icon-button" title="编辑" aria-label={`编辑 ${conn.name || conn.host}`} onClick={() => handleEdit(conn)}><EditIcon /></button>
+                  <button type="button" className="connection-icon-button danger" title="删除" aria-label={`删除 ${conn.name || conn.host}`} onClick={() => onDelete(conn.id)}><TrashIcon /></button>
                 </div>
               </div>
             ))
           )}
         </div>
       ) : (
-        <div className="mysql-sidebar-body">
+        <div className="connection-form">
           <div className="ssh-form-group">
             <label>名称</label>
             <input className="ssh-input" type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="可选" />
@@ -108,8 +109,12 @@ export default function ConnectionManager({
             <input className="ssh-input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           <div className="ssh-form-group">
-            <label>数据库 (可选)</label>
+            <label>默认数据库 <span>可选</span></label>
             <input className="ssh-input" type="text" value={form.database || ''} onChange={(e) => setForm({ ...form, database: e.target.value })} placeholder="连接后选择" />
+          </div>
+          <div className="ssh-form-group">
+            <label>代理地址</label>
+            <input className="ssh-input" type="url" value={form.proxyUrl || ''} onChange={(e) => setForm({ ...form, proxyUrl: e.target.value })} placeholder="ws://127.0.0.1:3000" />
           </div>
           <div className="ssh-form-actions">
             <button className="ssh-btn ssh-btn-sm ssh-btn-primary" onClick={handleSave}>{editingConn ? '更新' : '保存'}</button>
@@ -118,13 +123,6 @@ export default function ConnectionManager({
         </div>
       )}
 
-      {connected && activeConnection && (
-        <div className="conn-status">
-          <span className="conn-status-dot"></span>
-          <span className="conn-status-text">{activeConnection.name || activeConnection.host}</span>
-          <button className="ssh-btn ssh-btn-sm" onClick={onDisconnect}>断开</button>
-        </div>
-      )}
     </div>
   )
 }

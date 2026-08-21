@@ -39,6 +39,9 @@ function validateManifest(id, m) {
       throw new Error(`插件 ${id}:${k} 不是合法 semver:${String(m[k])}`)
     }
   }
+  if (m.panel?.layout && !['standard', 'workspace'].includes(m.panel.layout)) {
+    throw new Error(`插件 ${id}:panel.layout 不在宿主契约内:${String(m.panel.layout)}`)
+  }
 }
 
 for (const dir of readdirSync(srcDir, { withFileTypes: true })) {

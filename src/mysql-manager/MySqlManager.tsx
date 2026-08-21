@@ -10,10 +10,10 @@ import {
   CONNECTIONS_STORAGE_KEY,
   LEGACY_CONNECTIONS_STORAGE_KEY,
   LEGACY_QUERY_HISTORY_STORAGE_KEY,
-  QUERY_HISTORY_STORAGE_KEY
+  QUERY_HISTORY_STORAGE_KEY,
+  DEFAULT_PROXY_URL
 } from './storage'
 
-const PROXY_URL = 'ws://localhost:3000'
 type ViewTab = 'structure' | 'content' | 'query'
 interface WorkspaceTab {
   id: string
@@ -67,7 +67,7 @@ export default function MySqlManager(): React.JSX.Element {
   const handleConnect = useCallback(async (conn: Connection) => {
     setLoading(true); setError(null)
     try {
-      mysqlClient.setProxyUrl(PROXY_URL)
+      mysqlClient.setProxyUrl(conn.proxyUrl || DEFAULT_PROXY_URL)
       await mysqlClient.connect(conn)
       const res = await mysqlClient.query('SHOW DATABASES')
       if (res.error) { setError(res.error); setConnected(false); return }

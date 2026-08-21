@@ -6,11 +6,14 @@ interface Connection {
   user: string
   password: string
   database?: string
+  proxyUrl?: string
 }
+
+type QueryRow = unknown[] | Record<string, unknown>
 
 interface QueryResult {
   columns: string[]
-  rows: any[][]
+  rows: QueryRow[]
   affectedRows?: number
   error?: string
 }
@@ -24,10 +27,10 @@ class MySQLClient {
   private ws: WebSocket | null = null
   private pendingRequests: Map<string, PendingRequest> = new Map()
   private connectionId: string | null = null
-  private proxyUrl: string = 'ws://localhost:3000'
+  private proxyUrl: string = 'ws://127.0.0.1:3000'
 
-  setProxyUrl(url: string) {
-    this.proxyUrl = url
+  setProxyUrl(url: string): void {
+    this.proxyUrl = url.trim() || 'ws://127.0.0.1:3000'
   }
 
   async connect(conn: Connection): Promise<string> {
@@ -52,11 +55,11 @@ class MySQLClient {
           const data = JSON.parse(event.data)
           const { id, type, payload } = data
 
-          if (type === 'connected' || type === 'result' || type === 'disconnected') {
+          if (type === 'connected' || type === 'result' || type === 'disconnected' || type === 'error') {
             const pending = this.pendingRequests.get(id)
             if (pending) {
               this.pendingRequests.delete(id)
-              if (payload.message) {
+              if (type === 'error' || payload.message) {
                 pending.reject(new Error(payload.message))
               } else {
                 pending.resolve(payload)
@@ -75,6 +78,10 @@ class MySQLClient {
       this.ws.onclose = () => {
         this.ws = null
         this.connectionId = null
+        for (const [requestId, pending] of this.pendingRequests) {
+          pending.reject(new Error('WebSocket连接已关闭'))
+          this.pendingRequests.delete(requestId)
+        }
       }
     })
   }
@@ -142,4 +149,4 @@ class MySQLClient {
 }
 
 export const mysqlClient = new MySQLClient()
-export type { Connection, QueryResult }
+export type { Connection, QueryResult, QueryRow }

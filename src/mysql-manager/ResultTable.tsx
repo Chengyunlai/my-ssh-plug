@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
+import type { QueryRow } from './mysql-client'
 
 interface Props {
   columns: string[]
-  rows: any[][]
+  rows: QueryRow[]
   affectedRows?: number
 }
 
@@ -12,13 +13,17 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(50)
 
+  const valueAt = (row: QueryRow, index: number): unknown =>
+    Array.isArray(row) ? row[index] : row[columns[index]]
+
   const sorted = useMemo(() => {
     if (sortCol === null) return rows
     return [...rows].sort((a, b) => {
-      const av = a[sortCol], bv = b[sortCol]
+      const av = valueAt(a, sortCol), bv = valueAt(b, sortCol)
       if (av === null) return 1
       if (bv === null) return -1
-      return sortDir === 'asc' ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1)
+      const comparison = String(av).localeCompare(String(bv), undefined, { numeric: true })
+      return sortDir === 'asc' ? comparison : -comparison
     })
   }, [rows, sortCol, sortDir])
 
@@ -36,7 +41,7 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
 
   const exportCsv = () => {
     const header = columns.join(',')
-    const csvRows = rows.map(row => row.map(c => c === null ? '' : String(c).includes(',') ? `"${String(c).replace(/"/g, '""')}"` : String(c)).join(','))
+    const csvRows = rows.map(row => columns.map((_, index) => valueAt(row, index)).map(c => c === null ? '' : String(c).includes(',') ? `"${String(c).replace(/"/g, '""')}"` : String(c)).join(','))
     const blob = new Blob([[header, ...csvRows].join('\n')], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -79,9 +84,12 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
           <tbody>
             {pageRows.map((row, ri) => (
               <tr key={ri}>
-                {row.map((cell, ci) => (
+                {columns.map((_, ci) => {
+                  const cell = valueAt(row, ci)
+                  return (
                   <td key={ci}>{cell === null ? <span className="null-value">NULL</span> : String(cell)}</td>
-                ))}
+                  )
+                })}
               </tr>
             ))}
           </tbody>

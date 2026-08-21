@@ -29,7 +29,8 @@ npm install
 npm start
 ```
 
-代理服务默认运行在 `ws://localhost:3000`
+代理服务默认只监听本机 `ws://127.0.0.1:3000`。插件连接表单中的「代理地址」按连接保存；远程代理请使用
+`wss://` 并在服务端启用访问 token。
 
 ### 2. 安装插件
 
@@ -42,11 +43,8 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
 
 ### 3. 配置代理地址（可选）
 
-如果代理服务运行在其他地址，需要设置环境变量：
-
-```bash
-export MYSQL_PROXY_URL=ws://your-proxy-host:3000
-```
+如果代理服务运行在其他地址，在连接表单中填写「代理地址」，例如
+`wss://db-proxy.example.com:3000?token=change-me`。旧连接未填写时继续使用本机默认地址。
 
 ## 使用方法
 
@@ -62,13 +60,15 @@ export MYSQL_PROXY_URL=ws://your-proxy-host:3000
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
+| `HOST` | `127.0.0.1` | 监听地址；非回环地址需要同时配置 token 与明确来源 |
 | `PORT` | 3000 | WebSocket服务端口 |
-| `ALLOWED_ORIGINS` | `*` | 允许的来源（逗号分隔） |
+| `ALLOWED_ORIGINS` | `null` | 精确匹配的来源列表（逗号分隔），禁止 `*` |
+| `ACCESS_TOKEN` | 无 | 非回环监听必填；客户端在代理 URL 的 `token` 查询参数中携带 |
 
 ### 安全建议
 
-1. **限制来源**: 生产环境建议设置 `ALLOWED_ORIGINS` 为具体域名
-2. **使用HTTPS**: 建议通过HTTPS/WSS协议传输
+1. **限制来源**: 远程部署必须设置 `ALLOWED_ORIGINS` 为完整来源（例如 `https://app.example.com`），服务端会精确匹配
+2. **使用HTTPS**: 远程部署建议通过HTTPS/WSS协议传输，并设置随机 `ACCESS_TOKEN`
 3. **密码安全**: 连接密码仅存储在本地浏览器，不会上传到任何服务器
 
 ## 开发说明
@@ -111,7 +111,7 @@ npm run build
 
 ### 连接失败
 
-- 检查代理服务是否运行: `curl http://localhost:3000`
+- 检查代理服务是否运行: `curl http://127.0.0.1:3000`
 - 检查MySQL服务器是否可达
 - 检查防火墙设置
 

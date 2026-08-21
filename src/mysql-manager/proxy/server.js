@@ -1,21 +1,26 @@
-import { WebSocketServer } from 'ws'
+import { WebSocket, WebSocketServer } from 'ws'
 import mysql from 'mysql2/promise'
+import { registerSocketPool } from './socket-pools.js'
+import {
+  DEFAULT_PROXY_HOST,
+  parseAllowedOrigins,
+  isRequestAllowed,
+  validateProxyConfig
+} from './security.js'
 
-const PORT = process.env.PORT || 3000
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['*']
+const PORT = Number(process.env.PORT || 3000)
+const HOST = process.env.HOST || DEFAULT_PROXY_HOST
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN?.trim() || ''
+const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS)
 
-const wss = new WebSocketServer({ port: PORT })
+validateProxyConfig({ host: HOST, allowedOrigins: ALLOWED_ORIGINS, accessToken: ACCESS_TOKEN })
 
-console.log(`MySQL WebSocket代理服务启动在端口 ${PORT}`)
+const wss = new WebSocketServer({ host: HOST, port: PORT })
+
+console.log(`MySQL WebSocket代理服务启动在 ${HOST}:${PORT}`)
 
 // 存储连接池
 const pools = new Map()
-
-// 验证来源
-function checkOrigin(origin) {
-  if (ALLOWED_ORIGINS.includes('*')) return true
-  return ALLOWED_ORIGINS.some(allowed => origin?.includes(allowed))
-}
 
 // 生成连接ID
 function generateConnectionId() {
@@ -23,7 +28,7 @@ function generateConnectionId() {
 }
 
 // 处理消息
-async function handleMessage(ws, message) {
+async function handleMessage(ws, message, socketConnections) {
   try {
     const data = JSON.parse(message)
     const { type, id, payload } = data
@@ -32,9 +37,10 @@ async function handleMessage(ws, message) {
       case 'connect': {
         const { host, port, user, password, database } = payload
         const connectionId = generateConnectionId()
+        let pool
 
         try {
-          const pool = mysql.createPool({
+          pool = mysql.createPool({
             host,
             port: Number(port) || 3306,
             user,
@@ -48,7 +54,14 @@ async function handleMessage(ws, message) {
 
           const conn = await pool.getConnection()
           conn.release()
-          pools.set(connectionId, pool)
+          const registered = await registerSocketPool({
+            connectionId,
+            pool,
+            pools,
+            socketConnections,
+            socketIsOpen: ws.readyState === WebSocket.OPEN
+          })
+          if (!registered) return
 
           ws.send(JSON.stringify({
             type: 'connected',
@@ -56,6 +69,8 @@ async function handleMessage(ws, message) {
             payload: { connectionId }
           }))
         } catch (connErr) {
+          if (!pools.has(connectionId)) await pool?.end().catch(() => {})
+          if (ws.readyState !== WebSocket.OPEN) return
           ws.send(JSON.stringify({
             type: 'error',
             id,
@@ -119,6 +134,7 @@ async function handleMessage(ws, message) {
         if (pool) {
           await pool.end()
           pools.delete(connectionId)
+          socketConnections.delete(connectionId)
         }
         ws.send(JSON.stringify({
           type: 'disconnected',
@@ -147,20 +163,33 @@ async function handleMessage(ws, message) {
 // WebSocket连接处理
 wss.on('connection', (ws, req) => {
   const origin = req.headers.origin
-  if (!checkOrigin(origin)) {
+  let requestToken = ''
+  try {
+    requestToken = new URL(req.url || '/', `ws://${HOST}:${PORT}`).searchParams.get('token') || ''
+  } catch {
+    requestToken = ''
+  }
+  if (!isRequestAllowed({ origin, allowedOrigins: ALLOWED_ORIGINS, accessToken: ACCESS_TOKEN, requestToken })) {
     console.log(`拒绝连接，来源: ${origin}`)
     ws.close(1008, '来源不允许')
     return
   }
 
   console.log('新的WebSocket连接')
+  const socketConnections = new Set()
 
   ws.on('message', (data) => {
-    handleMessage(ws, data.toString())
+    handleMessage(ws, data.toString(), socketConnections)
   })
 
   ws.on('close', () => {
     console.log('WebSocket连接关闭')
+    for (const connectionId of socketConnections) {
+      const pool = pools.get(connectionId)
+      if (pool) pool.end().catch(() => {})
+      pools.delete(connectionId)
+    }
+    socketConnections.clear()
   })
 
   ws.on('error', (error) => {

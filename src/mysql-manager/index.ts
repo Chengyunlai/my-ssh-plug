@@ -17,6 +17,7 @@ export default definePlugin({
   panel: {
     title: 'MySQL 管理器',
     scope: 'app',
+    layout: 'workspace',
     Component: MySqlManager
   }
 })
