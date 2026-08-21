@@ -21,7 +21,13 @@ MySSH插件 (浏览器) <--WebSocket--> 代理服务 <--TCP--> MySQL服务器
 
 ## 安装步骤
 
-### 1. 启动代理服务
+### 1. 安装并启用插件
+
+MySQL Manager `1.1.0` 声明了 MySSH `1.3.0+` 的官方 Companion Runtime。正常使用时，
+插件首次连接数据库会由 MySSH 自动校验并启动内置代理，自动分配本机端口和临时 token，
+不需要用户手动运行 Node 服务。
+
+### 2. 手动代理回退（开发 / 远程部署）
 
 ```bash
 cd src/mysql-manager/proxy
@@ -29,10 +35,10 @@ npm install
 npm start
 ```
 
-代理服务默认只监听本机 `ws://127.0.0.1:3000`。插件连接表单中的「代理地址」按连接保存；远程代理请使用
+代理服务默认只监听本机 `ws://127.0.0.1:3000`。在连接表单中填写「代理地址」后，插件会优先使用该地址；远程代理请使用
 `wss://` 并在服务端启用访问 token。
 
-### 2. 安装插件
+### 3. 安装插件
 
 在MySSH设置中添加插件市场地址：
 ```
@@ -41,10 +47,11 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
 
 然后在插件市场中安装 "MySQL 管理器" 插件。
 
-### 3. 配置代理地址（可选）
+### 4. 配置代理地址（可选）
 
 如果代理服务运行在其他地址，在连接表单中填写「代理地址」，例如
-`wss://db-proxy.example.com:3000?token=change-me`。旧连接未填写时继续使用本机默认地址。
+`wss://db-proxy.example.com:3000?token=change-me`。显式填写的地址始终优先；新建连接留空时使用
+MySSH Companion Runtime，未接入宿主 runtime 的旧插件才回退到本机默认地址。
 
 ## 使用方法
 
@@ -60,8 +67,10 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `HOST` | `127.0.0.1` | 监听地址；非回环地址需要同时配置 token 与明确来源 |
-| `PORT` | 3000 | WebSocket服务端口 |
+| `MYSSH_RUNTIME_HOST` | `127.0.0.1` | MySSH Companion Runtime 注入的监听地址，不建议手动覆盖 |
+| `MYSSH_RUNTIME_PORT` | 0 | MySSH Companion Runtime 使用动态端口 |
+| `HOST` | `127.0.0.1` | 手动代理监听地址；非回环地址需要同时配置 token 与明确来源 |
+| `PORT` | 3000 | 手动代理 WebSocket 服务端口 |
 | `ALLOWED_ORIGINS` | `null,myssh-plugin://mysql-manager` | 精确匹配的来源列表（逗号分隔），禁止 `*` |
 | `ACCESS_TOKEN` | 无 | 非回环监听必填；客户端在代理 URL 的 `token` 查询参数中携带 |
 

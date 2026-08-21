@@ -8,8 +8,8 @@ import {
   validateProxyConfig
 } from './security.js'
 
-const PORT = Number(process.env.PORT || 3000)
-const HOST = process.env.HOST || DEFAULT_PROXY_HOST
+const PORT = Number(process.env.MYSSH_RUNTIME_PORT || process.env.PORT || 3000)
+const HOST = process.env.MYSSH_RUNTIME_HOST || process.env.HOST || DEFAULT_PROXY_HOST
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN?.trim() || ''
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS)
 
@@ -17,7 +17,18 @@ validateProxyConfig({ host: HOST, allowedOrigins: ALLOWED_ORIGINS, accessToken: 
 
 const wss = new WebSocketServer({ host: HOST, port: PORT })
 
-console.log(`MySQL WebSocket代理服务启动在 ${HOST}:${PORT}`)
+function writeReadyHandshake() {
+  const address = wss.address()
+  if (!address || typeof address === 'string') return
+  console.log(`MYSSH_RUNTIME_READY ${JSON.stringify({ port: address.port })}`)
+}
+
+wss.on('listening', () => {
+  const address = wss.address()
+  const port = address && typeof address !== 'string' ? address.port : PORT
+  console.log(`MySQL WebSocket代理服务启动在 ${HOST}:${port}`)
+  if (process.env.MYSSH_RUNTIME_PROTOCOL === 'node-companion-v1') writeReadyHandshake()
+})
 
 // 存储连接池
 const pools = new Map()
@@ -198,7 +209,7 @@ wss.on('connection', (ws, req) => {
 })
 
 // 优雅关闭
-process.on('SIGINT', async () => {
+async function shutdown() {
   console.log('正在关闭代理服务...')
   
   for (const [id, pool] of pools) {
@@ -213,4 +224,7 @@ process.on('SIGINT', async () => {
     console.log('代理服务已关闭')
     process.exit(0)
   })
-})
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)

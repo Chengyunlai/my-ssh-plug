@@ -1,5 +1,11 @@
 import type { ComponentType } from 'react'
 
+export interface PluginRuntimeContext {
+  getEndpoint(): Promise<{ transport: 'websocket'; url: string; generation: string }>
+  getState(): Promise<{ pluginId: string; state: 'stopped' | 'starting' | 'ready' | 'error'; generation?: string; error?: string }>
+  onState(callback: (state: { pluginId: string; state: 'stopped' | 'starting' | 'ready' | 'error'; generation?: string; error?: string }) => void): () => void
+}
+
 export interface MySshPlugin {
   id: string
   name: string
@@ -20,12 +26,17 @@ export interface MySshPlugin {
   builtin?: boolean
   /** 首次安装后的默认状态,缺省为启用 */
   defaultEnabled?: boolean
+  runtime?: {
+    kind: 'node-companion-v1'
+    transport: 'websocket'
+    lifecycle?: 'on-demand' | 'always'
+  }
   panel?: {
     title: string
     scope?: 'app' | 'session'
     /** MySSH 宿主内容区布局；重型工作台使用 workspace */
     layout?: 'standard' | 'workspace'
-    Component: ComponentType<Record<string, unknown>> | ComponentType<{ sessionId: string }>
+    Component: ComponentType<{ runtime?: PluginRuntimeContext }> | ComponentType<{ sessionId: string; runtime?: PluginRuntimeContext }>
   }
   widget?: {
     placement: 'terminal-bottom'
