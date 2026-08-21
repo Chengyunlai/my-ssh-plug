@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import TableDetail from './TableDetail'
 import SqlEditor from './SqlEditor'
 import ResultTable from './ResultTable'
+import { SqlIcon, TableIcon } from './Icons'
 import { mysqlClient, type Connection, type QueryResult } from './mysql-client'
 import {
   CONNECTIONS_STORAGE_KEY,
@@ -41,6 +42,7 @@ export default function MySqlManager(): React.JSX.Element {
 
   const activeWorkspaceTab = tabs.find(tab => tab.id === activeTabId) || null
   const selectedTable = activeWorkspaceTab?.kind === 'table' ? activeWorkspaceTab.table : null
+  const querySourceTable = activeWorkspaceTab?.kind === 'query' ? activeWorkspaceTab.table : null
   const activeView = activeWorkspaceTab?.activeView || 'structure'
   const sql = activeWorkspaceTab?.sql || ''
   const queryResult = activeWorkspaceTab?.queryResult || null
@@ -134,9 +136,9 @@ export default function MySqlManager(): React.JSX.Element {
     setTabs(prev => prev.map(tab => tab.id === activeTabId ? { ...tab, ...patch } : tab))
   }, [activeTabId])
 
-  const createQueryTab = useCallback((initialSql = '') => {
+  const createQueryTab = useCallback((initialSql = '', sourceTable: string | null = null) => {
     const id = `query-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    setTabs(prev => [...prev, { id, kind: 'query', title: `查询 ${prev.filter(tab => tab.kind === 'query').length + 1}`, db: selectedDb, table: null, activeView: 'query', sql: initialSql, queryResult: null }])
+    setTabs(prev => [...prev, { id, kind: 'query', title: sourceTable ? `${sourceTable} · SQL` : `查询 ${prev.filter(tab => tab.kind === 'query').length + 1}`, db: selectedDb, table: sourceTable, activeView: 'query', sql: initialSql, queryResult: null }])
     setActiveTabId(id)
     return id
   }, [selectedDb])
@@ -166,7 +168,7 @@ export default function MySqlManager(): React.JSX.Element {
     let targetId = tabId || activeTabId
     const targetTab = targetId ? tabs.find(tab => tab.id === targetId) : null
     if (targetTab?.kind === 'table') {
-      targetId = createQueryTab(q)
+      targetId = createQueryTab(q, targetTab.table)
     }
     if (!targetId) {
       targetId = createQueryTab(q)
@@ -191,7 +193,7 @@ export default function MySqlManager(): React.JSX.Element {
 
   const handleQueryTable = useCallback((table: string) => {
     const query = `SELECT * FROM \`${table}\` LIMIT 100`
-    const id = createQueryTab(query)
+    const id = createQueryTab(query, table)
     handleExecuteQuery(query, id)
   }, [createQueryTab, handleExecuteQuery])
 
@@ -232,12 +234,13 @@ export default function MySqlManager(): React.JSX.Element {
             <span className="workspace-separator">/</span>
             <span>{activeConnection?.name || '未连接'}</span>
             {selectedDb && <><span className="workspace-separator">/</span><span>{selectedDb}</span></>}
-            {selectedTable && <><span className="workspace-separator">/</span><span>{selectedTable}</span></>}
+            {(selectedTable || querySourceTable) && <><span className="workspace-separator">/</span><span>{selectedTable || querySourceTable}</span></>}
+            {activeWorkspaceTab?.kind === 'query' && <><span className="workspace-separator">/</span><span>SQL</span></>}
           </div>
           <div className="workspace-toolbar-actions"><span className={`proxy-indicator ${connected ? 'online' : ''}`}><i />代理 {connected ? '已连接' : '待机'}</span></div>
         </div>
         <div className="workspace-tabs" role="tablist" aria-label="打开的对象">
-          {tabs.map(tab => <button key={tab.id} className={`workspace-tab ${tab.id === activeTabId ? 'active' : ''}`} onClick={() => setActiveTabId(tab.id)}><span className="workspace-tab-icon">{tab.kind === 'table' ? '▦' : '⌘'}</span><span className="workspace-tab-label">{tab.title}</span><span className="workspace-tab-close" role="button" aria-label={`关闭 ${tab.title}`} onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}>×</span></button>)}
+          {tabs.map(tab => <button key={tab.id} className={`workspace-tab ${tab.id === activeTabId ? 'active' : ''}`} onClick={() => setActiveTabId(tab.id)}><span className="workspace-tab-icon">{tab.kind === 'table' ? <TableIcon /> : <SqlIcon />}</span><span className="workspace-tab-label">{tab.title}</span><span className="workspace-tab-close" role="button" aria-label={`关闭 ${tab.title}`} onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}>×</span></button>)}
           {connected && <button className="workspace-new-tab" title="新建查询" onClick={() => createQueryTab()}>＋</button>}
           {tabs.length === 0 && <span className="workspace-tabs-empty">从左侧对象树打开表，或直接执行 SQL</span>}
         </div>
