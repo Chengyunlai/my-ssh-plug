@@ -130,6 +130,7 @@ test('代理安全配置使用精确来源匹配', async () => {
   assert.equal(normalizeOrigin('https://app.example.com/path'), 'https://app.example.com')
   assert.equal(normalizeOrigin('https://app.example.com.evil.test'), 'https://app.example.com.evil.test')
   assert.equal(normalizeOrigin('myssh-plugin://mysql-manager/1.0.0/entry.js'), 'myssh-plugin://mysql-manager')
+  assert.equal(isRequestAllowed({ origin: 'myssh-plugin://mysql-manager', allowedOrigins: ['null', 'myssh-plugin://mysql-manager'], accessToken: '', requestToken: '' }), true)
   assert.equal(isRequestAllowed({ origin: 'https://app.example.com.evil.test', allowedOrigins: ['https://app.example.com'], accessToken: '', requestToken: '' }), false)
   assert.equal(isRequestAllowed({ origin: 'https://app.example.com', allowedOrigins: ['https://app.example.com'], accessToken: '', requestToken: '' }), true)
   assert.equal(isRequestAllowed({ origin: 'https://app.example.com', allowedOrigins: ['https://app.example.com'], accessToken: 'secret', requestToken: 'wrong' }), false)

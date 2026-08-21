@@ -62,7 +62,7 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
 |--------|--------|------|
 | `HOST` | `127.0.0.1` | 监听地址；非回环地址需要同时配置 token 与明确来源 |
 | `PORT` | 3000 | WebSocket服务端口 |
-| `ALLOWED_ORIGINS` | `null` | 精确匹配的来源列表（逗号分隔），禁止 `*` |
+| `ALLOWED_ORIGINS` | `null,myssh-plugin://mysql-manager` | 精确匹配的来源列表（逗号分隔），禁止 `*` |
 | `ACCESS_TOKEN` | 无 | 非回环监听必填；客户端在代理 URL 的 `token` 查询参数中携带 |
 
 ### 安全建议

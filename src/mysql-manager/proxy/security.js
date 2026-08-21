@@ -1,7 +1,7 @@
 import net from 'node:net'
 
 export const DEFAULT_PROXY_HOST = '127.0.0.1'
-export const DEFAULT_ALLOWED_ORIGINS = ['null']
+export const DEFAULT_ALLOWED_ORIGINS = ['null', 'myssh-plugin://mysql-manager']
 
 export function normalizeOrigin(value) {
   const origin = String(value ?? '').trim()
