@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { mysqlClient, type QueryResult } from './mysql-client'
+import { useState, useEffect, useCallback } from 'react'
+import { mysqlClient, type QueryResult, type QueryRow } from './mysql-client'
 
 interface Props {
   db: string
   table: string
-  activeTab: 'structure' | 'content' | 'query'
-  onTabChange: (tab: 'structure' | 'content' | 'query') => void
-  queryResult: QueryResult | null
+  activeTab: 'structure' | 'content'
+  onTabChange: (tab: 'structure' | 'content') => void
   loading: boolean
 }
 
@@ -19,12 +18,21 @@ interface ColumnInfo {
   extra: string
 }
 
-export default function TableDetail({ db, table, activeTab, onTabChange, queryResult, loading }: Props) {
+interface IndexInfo { name: string; column: string; unique: string; type: string; cardinality: string }
+interface ForeignKeyInfo { name: string; column: string; refTable: string; refColumn: string; updateRule: string; deleteRule: string }
+
+export default function TableDetail({ db, table, activeTab, onTabChange, loading }: Props) {
   const [structure, setStructure] = useState<ColumnInfo[]>([])
   const [content, setContent] = useState<QueryResult | null>(null)
   const [page, setPage] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
   const [editCell, setEditCell] = useState<{ row: number; col: number; value: string } | null>(null)
+  const [showInsert, setShowInsert] = useState(false)
+  const [newRow, setNewRow] = useState<Record<string, string>>({})
+  const [savingRow, setSavingRow] = useState(false)
+  const [structureView, setStructureView] = useState<'columns' | 'indexes' | 'foreignKeys'>('columns')
+  const [indexes, setIndexes] = useState<IndexInfo[]>([])
+  const [foreignKeys, setForeignKeys] = useState<ForeignKeyInfo[]>([])
   const pageSize = 50
 
   const loadStructure = useCallback(async () => {
@@ -44,6 +52,23 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
     }
   }, [table])
 
+  const loadIndexes = useCallback(async () => {
+    const res = await mysqlClient.query(`SHOW INDEX FROM \`${table}\``)
+    if (!res.error) setIndexes(res.rows.map(row => {
+      const values = Array.isArray(row) ? row : Object.values(row)
+      return { name: String(values[2] ?? ''), column: String(values[4] ?? ''), unique: String(values[1]) === '0' ? '是' : '否', type: String(values[10] ?? values[9] ?? ''), cardinality: values[6] == null ? '—' : String(values[6]) }
+    }))
+  }, [table])
+
+  const loadForeignKeys = useCallback(async () => {
+    const sql = `SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, UPDATE_RULE, DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON k.CONSTRAINT_NAME = r.CONSTRAINT_NAME AND k.CONSTRAINT_SCHEMA = r.CONSTRAINT_SCHEMA WHERE k.TABLE_SCHEMA = DATABASE() AND k.TABLE_NAME = '${table.replace(/'/g, "''")}' AND k.REFERENCED_TABLE_NAME IS NOT NULL ORDER BY k.CONSTRAINT_NAME`
+    const res = await mysqlClient.query(sql)
+    if (!res.error) setForeignKeys(res.rows.map(row => {
+      const values = Array.isArray(row) ? row : Object.values(row)
+      return { name: String(values[0] ?? ''), column: String(values[1] ?? ''), refTable: String(values[2] ?? ''), refColumn: String(values[3] ?? ''), updateRule: String(values[4] ?? ''), deleteRule: String(values[5] ?? '') }
+    }))
+  }, [table])
+
   const loadContent = useCallback(async (p: number) => {
     const offset = p * pageSize
     const res = await mysqlClient.query(`SELECT * FROM \`${table}\` LIMIT ${pageSize} OFFSET ${offset}`)
@@ -59,8 +84,18 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
   }, [table])
 
   useEffect(() => {
-    if (activeTab === 'structure') loadStructure()
+    if (activeTab === 'structure' || (activeTab === 'content' && structure.length === 0)) loadStructure()
   }, [activeTab, loadStructure])
+
+  useEffect(() => {
+    if (activeTab !== 'structure') return
+    if (structureView === 'indexes') loadIndexes()
+    if (structureView === 'foreignKeys') loadForeignKeys()
+  }, [activeTab, structureView, loadIndexes, loadForeignKeys])
+
+  useEffect(() => {
+    setStructureView('columns'); setIndexes([]); setForeignKeys([])
+  }, [table])
 
   useEffect(() => {
     if (activeTab === 'content') { setPage(0); loadCount(); loadContent(0) }
@@ -100,8 +135,24 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
 
   const totalPages = Math.ceil(totalRows / pageSize)
 
-  const getCellValue = (row: any[], idx: number) => {
-    const val = Array.isArray(row) ? row[idx] : Object.values(row)[idx]
+  const sqlValue = (value: string) => {
+    if (value.trim().toUpperCase() === 'NULL') return 'NULL'
+    return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+  }
+
+  const handleInsertRow = async () => {
+    if (!newRow || !Object.keys(newRow).some(key => newRow[key]?.trim())) return
+    setSavingRow(true)
+    const fields = structure.filter(col => newRow[col.field] !== undefined && newRow[col.field] !== '').map(col => `\`${col.field}\``)
+    const values = structure.filter(col => newRow[col.field] !== undefined && newRow[col.field] !== '').map(col => sqlValue(newRow[col.field]))
+    const res = await mysqlClient.query(`INSERT INTO \`${table}\` (${fields.join(', ')}) VALUES (${values.join(', ')})`)
+    if (res.error) alert(res.error)
+    else { setShowInsert(false); setNewRow({}); await loadCount(); await loadContent(page) }
+    setSavingRow(false)
+  }
+
+  const getCellValue = (row: QueryRow, idx: number) => {
+    const val = Array.isArray(row) ? row[idx] : row[content?.columns[idx] ?? '']
     return val === null ? null : val
   }
 
@@ -110,13 +161,17 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
       <div className="tab-bar">
         <div className={`tab ${activeTab === 'structure' ? 'active' : ''}`} onClick={() => onTabChange('structure')}>结构</div>
         <div className={`tab ${activeTab === 'content' ? 'active' : ''}`} onClick={() => onTabChange('content')}>内容</div>
-        <div className={`tab ${activeTab === 'query' ? 'active' : ''}`} onClick={() => onTabChange('query')}>查询</div>
         <span className="tab-label">{db}.{table}</span>
       </div>
 
       {activeTab === 'structure' && (
         <div className="tab-content">
-          <table className="result-table">
+          <div className="structure-switcher">
+            <button className={structureView === 'columns' ? 'active' : ''} onClick={() => setStructureView('columns')}>字段 <span>{structure.length}</span></button>
+            <button className={structureView === 'indexes' ? 'active' : ''} onClick={() => setStructureView('indexes')}>索引 <span>{indexes.length}</span></button>
+            <button className={structureView === 'foreignKeys' ? 'active' : ''} onClick={() => setStructureView('foreignKeys')}>外键 <span>{foreignKeys.length}</span></button>
+          </div>
+          {structureView === 'columns' && <table className="result-table">
             <thead>
               <tr>
                 <th>字段</th><th>类型</th><th>Null</th><th>键</th><th>默认值</th><th>额外</th>
@@ -134,7 +189,9 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
+          {structureView === 'indexes' && <table className="result-table"><thead><tr><th>名称</th><th>字段</th><th>唯一</th><th>类型</th><th>基数</th></tr></thead><tbody>{indexes.map((index, i) => <tr key={i}><td><span className="col-name">{index.name}</span></td><td>{index.column}</td><td>{index.unique}</td><td>{index.type}</td><td>{index.cardinality}</td></tr>)}</tbody></table>}
+          {structureView === 'foreignKeys' && <table className="result-table"><thead><tr><th>约束</th><th>字段</th><th>引用表</th><th>引用字段</th><th>更新</th><th>删除</th></tr></thead><tbody>{foreignKeys.map((key, i) => <tr key={i}><td><span className="col-name">{key.name}</span></td><td>{key.column}</td><td>{key.refTable}</td><td>{key.refColumn}</td><td>{key.updateRule}</td><td>{key.deleteRule}</td></tr>)}</tbody></table>}
         </div>
       )}
 
@@ -147,9 +204,19 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
               <div className="result-header">
                 <span>共 {totalRows} 行</span>
                 <div className="result-actions">
+                  <button className="ssh-btn ssh-btn-sm ssh-btn-primary" onClick={() => { setShowInsert(true); if (structure.length === 0) loadStructure() }}>＋ 新增行</button>
                   <button className="ssh-btn ssh-btn-sm" onClick={() => loadContent(page)}>刷新</button>
                 </div>
               </div>
+              {showInsert && (
+                <div className="insert-row-panel">
+                  <div className="insert-row-title"><strong>新增一行</strong><span>留空字段使用数据库默认值，输入 NULL 写入空值</span></div>
+                  <div className="insert-row-fields">
+                    {structure.map(col => <label key={col.field}><span>{col.field}</span><input value={newRow[col.field] || ''} placeholder={col.extra.includes('auto_increment') ? '自动递增' : col.default ?? '默认'} onChange={e => setNewRow({ ...newRow, [col.field]: e.target.value })} disabled={col.extra.includes('auto_increment')} /></label>)}
+                  </div>
+                  <div className="insert-row-actions"><button className="ssh-btn ssh-btn-sm ssh-btn-primary" onClick={handleInsertRow} disabled={savingRow}>{savingRow ? '保存中…' : '保存行'}</button><button className="ssh-btn ssh-btn-sm" onClick={() => { setShowInsert(false); setNewRow({}) }}>取消</button></div>
+                </div>
+              )}
               <div className="result-table-wrapper">
                 <table className="result-table">
                   <thead>
@@ -205,55 +272,6 @@ export default function TableDetail({ db, table, activeTab, onTabChange, queryRe
         </div>
       )}
 
-      {activeTab === 'query' && queryResult && (
-        <div className="tab-content tab-content-fill">
-          <ResultTable columns={queryResult.columns} rows={queryResult.rows} affectedRows={queryResult.affectedRows} />
-        </div>
-      )}
     </div>
-  )
-}
-
-function ResultTable({ columns, rows, affectedRows }: { columns: string[]; rows: any[][]; affectedRows?: number }) {
-  const [sortCol, setSortCol] = useState<number | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-  const [page, setPage] = useState(0)
-  const pageSize = 50
-
-  const sorted = useMemo(() => {
-    if (sortCol === null) return rows
-    return [...rows].sort((a, b) => {
-      const av = a[sortCol], bv = b[sortCol]
-      if (av === null) return 1; if (bv === null) return -1
-      return sortDir === 'asc' ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1)
-    })
-  }, [rows, sortCol, sortDir])
-
-  const pageRows = useMemo(() => sorted.slice(page * pageSize, (page + 1) * pageSize), [sorted, page])
-  const totalPages = Math.ceil(rows.length / pageSize)
-
-  if (!columns.length && !rows.length) {
-    return <div className="result-empty">{affectedRows !== undefined ? <span className="result-success">影响 {affectedRows} 行</span> : '无结果'}</div>
-  }
-
-  return (
-    <>
-      <div className="result-header"><span>{rows.length} 行</span></div>
-      <div className="result-table-wrapper">
-        <table className="result-table">
-          <thead><tr>{columns.map((c, i) => <th key={i} className={sortCol === i ? 'sorted' : ''} onClick={() => { if (sortCol === i) setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); else { setSortCol(i); setSortDir('asc') } }}>{c}{sortCol === i && (sortDir === 'asc' ? ' ↑' : ' ↓')}</th>)}</tr></thead>
-          <tbody>{pageRows.map((row, ri) => <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell === null ? <span className="null-value">NULL</span> : String(cell)}</td>)}</tr>)}</tbody>
-        </table>
-      </div>
-      {totalPages > 1 && (
-        <div className="result-pagination">
-          <button className="ssh-btn ssh-btn-sm" onClick={() => setPage(0)} disabled={page === 0}>«</button>
-          <button className="ssh-btn ssh-btn-sm" onClick={() => setPage(page - 1)} disabled={page === 0}>‹</button>
-          <span>{page + 1} / {totalPages}</span>
-          <button className="ssh-btn ssh-btn-sm" onClick={() => setPage(page + 1)} disabled={page >= totalPages - 1}>›</button>
-          <button className="ssh-btn ssh-btn-sm" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>»</button>
-        </div>
-      )}
-    </>
   )
 }
