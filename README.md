@@ -71,6 +71,11 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
 - `react` / `react/jsx-runtime` 必须外部化,由 MySSH 运行时通过 import map 提供,
   禁止把 React 打进包(否则 hooks / context 会分裂)
 - bundle 是 ESM,入口 `index.ts` 默认导出 `definePlugin({...})` 的清单对象
+- 面板可声明宿主布局级别:`standard`(普通表单/列表,缺省值)或 `workspace`(重型内部工作台)。
+  `workspace` 仅允许在 MySSH 分配的插件内容区内组织内部侧栏/工具栏/标签页,不能覆盖核心
+  顶栏、服务器侧栏或状态栏；当前重型 `mysql-manager` 使用 `scope: "app"` + `layout: "workspace"`
+- 面板样式必须以插件根类为作用域,优先使用 MySSH 注入的 `--myssh-plugin-*` 语义 Token；禁止
+  `position: fixed`、修改 `body/#root`、全局选择器和 `transition: all`
 - 清单字段:`id`(kebab-case 唯一)、`name`、`version`(semver)、`description`、
   `author`、`category`(官方分类表:`terminal` / `files` / `tool` / `monitor` /
   `integration` / `other`)、`minAppVersion` / `maxAppVersion`(兼容 MySSH 版本区间,

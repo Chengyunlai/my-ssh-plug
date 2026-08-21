@@ -23,6 +23,8 @@ export interface MySshPlugin {
   panel?: {
     title: string
     scope?: 'app' | 'session'
+    /** MySSH 宿主内容区布局；重型工作台使用 workspace */
+    layout?: 'standard' | 'workspace'
     Component: ComponentType<Record<string, unknown>> | ComponentType<{ sessionId: string }>
   }
   widget?: {
