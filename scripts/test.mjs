@@ -125,6 +125,77 @@ test('WebSocket 已关闭时不会把新连接池留在注册表', async () => {
   assert.equal(socketConnections.size, 0)
 })
 
+test('旧 WebSocket 的关闭事件不会清空新连接', async () => {
+  const { mysqlClient } = await import('../src/mysql-manager/mysql-client.ts')
+  const nativeWebSocket = globalThis.WebSocket
+
+  class FakeWebSocket {
+    static OPEN = 1
+    static CLOSED = 3
+    static instances = []
+    readyState = 0
+    sent = []
+    onopen
+    onmessage
+    onerror
+    onclose
+
+    constructor(url) {
+      this.url = url
+      FakeWebSocket.instances.push(this)
+    }
+
+    open() {
+      this.readyState = FakeWebSocket.OPEN
+      this.onopen?.()
+    }
+
+    send(raw) {
+      this.sent.push(JSON.parse(raw))
+    }
+
+    message(payload) {
+      this.onmessage?.({ data: JSON.stringify(payload) })
+    }
+
+    close() {
+      this.readyState = FakeWebSocket.CLOSED
+      this.onclose?.()
+    }
+  }
+
+  globalThis.WebSocket = FakeWebSocket
+  const connection = {
+    host: '127.0.0.1',
+    port: 3307,
+    user: 'root',
+    password: 'secret'
+  }
+
+  try {
+    const first = mysqlClient.connect(connection).catch((error) => error)
+    const firstSocket = FakeWebSocket.instances[0]
+    firstSocket.open()
+
+    const second = mysqlClient.connect(connection)
+    const secondSocket = FakeWebSocket.instances[1]
+    secondSocket.open()
+
+    firstSocket.close()
+    secondSocket.message({
+      type: 'connected',
+      id: secondSocket.sent[0].id,
+      payload: { connectionId: 'new-connection' }
+    })
+
+    assert.equal((await first).message, 'WebSocket连接已关闭')
+    assert.equal(await second, 'new-connection')
+  } finally {
+    for (const socket of FakeWebSocket.instances) socket.close()
+    globalThis.WebSocket = nativeWebSocket
+  }
+})
+
 test('代理安全配置使用精确来源匹配', async () => {
   const { normalizeOrigin, isRequestAllowed, validateProxyConfig } = await import('../src/mysql-manager/proxy/security.js')
   assert.equal(normalizeOrigin('https://app.example.com/path'), 'https://app.example.com')

@@ -21,6 +21,7 @@ interface QueryResult {
 interface PendingRequest {
   resolve: (value: any) => void
   reject: (reason: any) => void
+  timer?: ReturnType<typeof setTimeout>
 }
 
 class MySQLClient {
@@ -34,23 +35,34 @@ class MySQLClient {
   }
 
   async connect(conn: Connection): Promise<string> {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.proxyUrl)
+    const previous = this.ws
+    if (previous) {
+      this.ws = null
+      this.connectionId = null
+      this.rejectPendingRequests(new Error('WebSocket连接已关闭'))
+      previous.close()
+    }
 
-      this.ws.onopen = () => {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(this.proxyUrl)
+      this.ws = ws
+
+      ws.onopen = () => {
+        if (this.ws !== ws) return
         this.sendRequest('connect', {
           host: conn.host,
           port: conn.port,
           user: conn.user,
           password: conn.password,
           database: conn.database
-        }).then((response: any) => {
+        }, ws).then((response: any) => {
           this.connectionId = response.connectionId
           resolve(response.connectionId)
         }).catch(reject)
       }
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (this.ws !== ws) return
         try {
           const data = JSON.parse(event.data)
           const { id, type, payload } = data
@@ -58,9 +70,10 @@ class MySQLClient {
           if (type === 'connected' || type === 'result' || type === 'disconnected' || type === 'error') {
             const pending = this.pendingRequests.get(id)
             if (pending) {
+              if (pending.timer) clearTimeout(pending.timer)
               this.pendingRequests.delete(id)
-              if (type === 'error' || payload.message) {
-                pending.reject(new Error(payload.message))
+              if (type === 'error' || payload?.message) {
+                pending.reject(new Error(payload?.message || 'WebSocket请求失败'))
               } else {
                 pending.resolve(payload)
               }
@@ -71,17 +84,17 @@ class MySQLClient {
         }
       }
 
-      this.ws.onerror = (error) => {
+      ws.onerror = () => {
+        if (this.ws !== ws) return
+        this.rejectPendingRequests(new Error('WebSocket连接失败'))
         reject(new Error('WebSocket连接失败'))
       }
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
+        if (this.ws !== ws) return
         this.ws = null
         this.connectionId = null
-        for (const [requestId, pending] of this.pendingRequests) {
-          pending.reject(new Error('WebSocket连接已关闭'))
-          this.pendingRequests.delete(requestId)
-        }
+        this.rejectPendingRequests(new Error('WebSocket连接已关闭'))
       }
     })
   }
@@ -125,26 +138,35 @@ class MySQLClient {
     this.connectionId = null
   }
 
-  private sendRequest(type: string, payload: any): Promise<any> {
+  private sendRequest(type: string, payload: any, socket: WebSocket | null = this.ws): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      if (!socket || this.ws !== socket || socket.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket未连接'))
         return
       }
 
       const id = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      this.pendingRequests.set(id, { resolve, reject })
+      const pending: PendingRequest = { resolve, reject }
+      this.pendingRequests.set(id, pending)
 
-      this.ws.send(JSON.stringify({ type, id, payload }))
+      socket.send(JSON.stringify({ type, id, payload }))
 
       // 超时处理
-      setTimeout(() => {
+      pending.timer = setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id)
           reject(new Error('请求超时'))
         }
       }, 30000)
     })
+  }
+
+  private rejectPendingRequests(error: Error): void {
+    for (const pending of this.pendingRequests.values()) {
+      if (pending.timer) clearTimeout(pending.timer)
+      pending.reject(error)
+    }
+    this.pendingRequests.clear()
   }
 }
 
