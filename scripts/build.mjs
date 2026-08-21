@@ -30,6 +30,14 @@ function isOfficial(id, author) {
   )
 }
 
+function safeRelativePath(value, label) {
+  const normalized = String(value ?? '').replaceAll('\\', '/')
+  if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    throw new Error(`${label} 必须是安全的相对路径:${String(value)}`)
+  }
+  return normalized
+}
+
 function validateManifest(id, m) {
   if (m.category && !CATEGORIES.has(m.category)) {
     throw new Error(`插件 ${id}:category 不在官方分类表内:${String(m.category)}`)
@@ -41,6 +49,16 @@ function validateManifest(id, m) {
   }
   if (m.panel?.layout && !['standard', 'workspace'].includes(m.panel.layout)) {
     throw new Error(`插件 ${id}:panel.layout 不在宿主契约内:${String(m.panel.layout)}`)
+  }
+  if (m.runtime) {
+    if (m.runtime.kind !== 'node-companion-v1' || m.runtime.transport !== 'websocket') {
+      throw new Error(`插件 ${id}:runtime 类型或传输不在宿主契约内`)
+    }
+    if (m.runtime.lifecycle && m.runtime.lifecycle !== 'on-demand') {
+      throw new Error(`插件 ${id}:runtime.lifecycle 当前仅支持 on-demand`)
+    }
+    safeRelativePath(m.runtime.entry, `${id}:runtime.entry`)
+    safeRelativePath(m.runtime.source, `${id}:runtime.source`)
   }
 }
 
@@ -74,8 +92,40 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   validateManifest(id, manifest)
   const entryBuf = readFileSync(outFile)
+  let runtime
+  if (manifest.runtime) {
+    const runtimeSource = safeRelativePath(manifest.runtime.source, `${id}:runtime.source`)
+    if (!runtimeSource || !manifest.runtime.entry) {
+      throw new Error(`插件 ${id}:runtime 必须声明 source 与 entry`)
+    }
+    const runtimeEntry = safeRelativePath(manifest.runtime.entry, `${id}:runtime.entry`)
+    const runtimeOutFile = path.join(distDir, id, runtimeEntry)
+    mkdirSync(path.dirname(runtimeOutFile), { recursive: true })
+    execFileSync(
+      esbuild,
+      [
+        path.join(srcDir, id, runtimeSource),
+        '--bundle',
+        '--platform=node',
+        '--format=cjs',
+        '--target=node20',
+        '--outfile=' + runtimeOutFile
+      ],
+      { stdio: 'inherit' }
+    )
+    const runtimeBuf = readFileSync(runtimeOutFile)
+    runtime = {
+      kind: manifest.runtime.kind,
+      entry: runtimeEntry,
+      sha256: createHash('sha256').update(runtimeBuf).digest('hex'),
+      size: runtimeBuf.length,
+      ...(manifest.runtime.lifecycle ? { lifecycle: manifest.runtime.lifecycle } : {}),
+      transport: manifest.runtime.transport
+    }
+  }
   registry.plugins.push({
     ...manifest,
+    ...(runtime ? { runtime } : {}),
     official: isOfficial(id, manifest.author),
     entry: `${id}/entry.js`,
     sha256: createHash('sha256').update(entryBuf).digest('hex')

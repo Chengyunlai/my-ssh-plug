@@ -30,12 +30,12 @@ export default function ConnectionManager({
   const [showForm, setShowForm] = useState(false)
   const [editingConn, setEditingConn] = useState<Connection | null>(null)
   const [form, setForm] = useState<Connection>({
-    id: '', name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: 'ws://127.0.0.1:3000'
+    id: '', name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: ''
   })
 
   const handleNew = () => {
     setEditingConn(null)
-    setForm({ id: `conn-${Date.now()}`, name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: 'ws://127.0.0.1:3000' })
+    setForm({ id: `conn-${Date.now()}`, name: '', host: 'localhost', port: 3306, user: 'root', password: '', database: '', proxyUrl: '' })
     setShowForm(true)
   }
 
@@ -113,8 +113,8 @@ export default function ConnectionManager({
             <input className="ssh-input" type="text" value={form.database || ''} onChange={(e) => setForm({ ...form, database: e.target.value })} placeholder="连接后选择" />
           </div>
           <div className="ssh-form-group">
-            <label>代理地址</label>
-            <input className="ssh-input" type="url" value={form.proxyUrl || ''} onChange={(e) => setForm({ ...form, proxyUrl: e.target.value })} placeholder="ws://127.0.0.1:3000" />
+            <label>代理地址 <span>可选，留空由 MySSH 管理</span></label>
+            <input className="ssh-input" type="url" value={form.proxyUrl || ''} onChange={(e) => setForm({ ...form, proxyUrl: e.target.value })} placeholder="由 MySSH 自动分配（旧代理可填 ws://127.0.0.1:3000）" />
           </div>
           <div className="ssh-form-actions">
             <button className="ssh-btn ssh-btn-sm ssh-btn-primary" onClick={handleSave}>{editingConn ? '更新' : '保存'}</button>

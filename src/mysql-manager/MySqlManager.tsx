@@ -13,6 +13,7 @@ import {
   QUERY_HISTORY_STORAGE_KEY,
   DEFAULT_PROXY_URL
 } from './storage'
+import type { PluginRuntimeContext } from '../plugin-types'
 
 type ViewTab = 'structure' | 'content' | 'query'
 interface WorkspaceTab {
@@ -26,7 +27,7 @@ interface WorkspaceTab {
   queryResult: QueryResult | null
 }
 
-export default function MySqlManager(): React.JSX.Element {
+export default function MySqlManager({ runtime }: { runtime?: PluginRuntimeContext }): React.JSX.Element {
   const [connections, setConnections] = useState<Connection[]>([])
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null)
   const [connected, setConnected] = useState(false)
@@ -39,6 +40,12 @@ export default function MySqlManager(): React.JSX.Element {
   const [tabs, setTabs] = useState<WorkspaceTab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [queryHistory, setQueryHistory] = useState<string[]>([])
+
+  const resolveProxyUrl = useCallback(async (): Promise<string> => {
+    if (!runtime) return DEFAULT_PROXY_URL
+    const endpoint = await runtime.getEndpoint()
+    return endpoint.url
+  }, [runtime])
 
   const activeWorkspaceTab = tabs.find(tab => tab.id === activeTabId) || null
   const selectedTable = activeWorkspaceTab?.kind === 'table' ? activeWorkspaceTab.table : null
@@ -67,7 +74,9 @@ export default function MySqlManager(): React.JSX.Element {
   const handleConnect = useCallback(async (conn: Connection) => {
     setLoading(true); setError(null)
     try {
-      mysqlClient.setProxyUrl(conn.proxyUrl || DEFAULT_PROXY_URL)
+      const configuredProxy = conn.proxyUrl?.trim()
+      const proxyUrl = configuredProxy || await resolveProxyUrl()
+      mysqlClient.setProxyUrl(proxyUrl)
       await mysqlClient.connect(conn)
       const res = await mysqlClient.query('SHOW DATABASES')
       if (res.error) { setError(res.error); setConnected(false); return }
@@ -84,7 +93,7 @@ export default function MySqlManager(): React.JSX.Element {
       }
     } catch (e) { setError(e instanceof Error ? e.message : '连接失败'); setConnected(false) }
     setLoading(false)
-  }, [])
+  }, [resolveProxyUrl])
 
   const handleDisconnect = useCallback(async () => {
     try { await mysqlClient.disconnect() } catch {}
