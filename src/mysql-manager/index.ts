@@ -11,7 +11,7 @@ export default definePlugin({
   description: 'MySQL数据库管理工具:连接管理、表结构查看、SQL查询执行',
   author: 'MySSH',
   category: 'tool',
-  minAppVersion: '0.1.0',
+  minAppVersion: '1.2.0',
   builtin: false,
   defaultEnabled: false,
   panel: {
