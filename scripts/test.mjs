@@ -248,6 +248,40 @@ test('连接建立前重连会结束旧的连接尝试', async () => {
   }
 })
 
+test('连接完成前断开会结束连接尝试', async () => {
+  const { mysqlClient } = await import('../src/mysql-manager/mysql-client.ts')
+  const nativeWebSocket = globalThis.WebSocket
+
+  class FakeWebSocket {
+    static OPEN = 1
+    static CLOSED = 3
+    readyState = 0
+    onopen
+    onmessage
+    onerror
+    onclose
+
+    open() {
+      this.readyState = FakeWebSocket.OPEN
+      this.onopen?.()
+    }
+
+    close() {
+      this.readyState = FakeWebSocket.CLOSED
+      this.onclose?.()
+    }
+  }
+
+  globalThis.WebSocket = FakeWebSocket
+  try {
+    const connect = mysqlClient.connect({ host: '127.0.0.1', port: 3307, user: 'root', password: 'secret' }).catch((error) => error)
+    await mysqlClient.disconnect()
+    assert.equal((await connect).message, 'WebSocket连接已关闭')
+  } finally {
+    globalThis.WebSocket = nativeWebSocket
+  }
+})
+
 test('代理安全配置使用精确来源匹配', async () => {
   const { normalizeOrigin, isRequestAllowed, validateProxyConfig } = await import('../src/mysql-manager/proxy/security.js')
   assert.equal(normalizeOrigin('https://app.example.com/path'), 'https://app.example.com')

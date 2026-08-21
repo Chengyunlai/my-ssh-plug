@@ -142,12 +142,13 @@ class MySQLClient {
       }
     }
 
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-
+    const socket = this.ws
+    this.ws = null
     this.connectionId = null
+    this.pendingConnectReject?.(new Error('WebSocket连接已关闭'))
+    this.pendingConnectReject = null
+    this.rejectPendingRequests(new Error('WebSocket连接已关闭'))
+    socket?.close()
   }
 
   private sendRequest(type: string, payload: any, socket: WebSocket | null = this.ws): Promise<any> {
