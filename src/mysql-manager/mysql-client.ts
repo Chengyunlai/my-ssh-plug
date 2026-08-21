@@ -29,6 +29,7 @@ class MySQLClient {
   private pendingRequests: Map<string, PendingRequest> = new Map()
   private connectionId: string | null = null
   private proxyUrl: string = 'ws://127.0.0.1:3000'
+  private pendingConnectReject: ((reason: Error) => void) | null = null
 
   setProxyUrl(url: string): void {
     this.proxyUrl = url.trim() || 'ws://127.0.0.1:3000'
@@ -40,12 +41,15 @@ class MySQLClient {
       this.ws = null
       this.connectionId = null
       this.rejectPendingRequests(new Error('WebSocket连接已关闭'))
+      this.pendingConnectReject?.(new Error('WebSocket连接已关闭'))
+      this.pendingConnectReject = null
       previous.close()
     }
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(this.proxyUrl)
       this.ws = ws
+      this.pendingConnectReject = reject
 
       ws.onopen = () => {
         if (this.ws !== ws) return
@@ -56,9 +60,14 @@ class MySQLClient {
           password: conn.password,
           database: conn.database
         }, ws).then((response: any) => {
+          if (this.ws !== ws) return
+          this.pendingConnectReject = null
           this.connectionId = response.connectionId
           resolve(response.connectionId)
-        }).catch(reject)
+        }).catch((error) => {
+          if (this.ws === ws) this.pendingConnectReject = null
+          reject(error)
+        })
       }
 
       ws.onmessage = (event) => {
@@ -86,15 +95,18 @@ class MySQLClient {
 
       ws.onerror = () => {
         if (this.ws !== ws) return
+        this.pendingConnectReject = null
         this.rejectPendingRequests(new Error('WebSocket连接失败'))
         reject(new Error('WebSocket连接失败'))
       }
 
       ws.onclose = () => {
         if (this.ws !== ws) return
+        this.pendingConnectReject = null
         this.ws = null
         this.connectionId = null
         this.rejectPendingRequests(new Error('WebSocket连接已关闭'))
+        reject(new Error('WebSocket连接已关闭'))
       }
     })
   }

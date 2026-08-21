@@ -196,6 +196,58 @@ test('旧 WebSocket 的关闭事件不会清空新连接', async () => {
   }
 })
 
+test('连接建立前重连会结束旧的连接尝试', async () => {
+  const { mysqlClient } = await import('../src/mysql-manager/mysql-client.ts')
+  const nativeWebSocket = globalThis.WebSocket
+
+  class FakeWebSocket {
+    static OPEN = 1
+    static CLOSED = 3
+    static instances = []
+    readyState = 0
+    sent = []
+    onopen
+    onmessage
+    onerror
+    onclose
+
+    constructor() {
+      FakeWebSocket.instances.push(this)
+    }
+
+    open() {
+      this.readyState = FakeWebSocket.OPEN
+      this.onopen?.()
+    }
+
+    send(raw) {
+      this.sent.push(JSON.parse(raw))
+    }
+
+    close() {
+      this.readyState = FakeWebSocket.CLOSED
+      this.onclose?.()
+    }
+  }
+
+  globalThis.WebSocket = FakeWebSocket
+  const connection = { host: '127.0.0.1', port: 3307, user: 'root', password: 'secret' }
+
+  try {
+    const first = mysqlClient.connect(connection).catch((error) => error)
+    const firstSocket = FakeWebSocket.instances[0]
+    const second = mysqlClient.connect(connection).catch((error) => error)
+    const secondSocket = FakeWebSocket.instances[1]
+    firstSocket.close()
+    assert.equal((await first).message, 'WebSocket连接已关闭')
+    secondSocket.close()
+    assert.equal((await second).message, 'WebSocket连接已关闭')
+  } finally {
+    for (const socket of FakeWebSocket.instances) socket.close()
+    globalThis.WebSocket = nativeWebSocket
+  }
+})
+
 test('代理安全配置使用精确来源匹配', async () => {
   const { normalizeOrigin, isRequestAllowed, validateProxyConfig } = await import('../src/mysql-manager/proxy/security.js')
   assert.equal(normalizeOrigin('https://app.example.com/path'), 'https://app.example.com')
