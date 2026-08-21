@@ -116,7 +116,7 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
     const runtimeBuf = readFileSync(runtimeOutFile)
     runtime = {
       kind: manifest.runtime.kind,
-      entry: runtimeEntry,
+      entry: `${id}/${runtimeEntry}`,
       sha256: createHash('sha256').update(runtimeBuf).digest('hex'),
       size: runtimeBuf.length,
       ...(manifest.runtime.lifecycle ? { lifecycle: manifest.runtime.lifecycle } : {}),
@@ -131,6 +131,18 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
     sha256: createHash('sha256').update(entryBuf).digest('hex')
   })
   console.log(`built ${id}@${manifest.version} -> dist/${id}/entry.js (${entryBuf.length} bytes)`)
+}
+
+// registry 中的相对资源路径必须能在待部署的 dist/ 内找到；这与 MySSH 的 URL 解析方式一致。
+for (const plugin of registry.plugins) {
+  for (const [label, entry] of [
+    ['entry', plugin.entry],
+    ['runtime.entry', plugin.runtime?.entry]
+  ]) {
+    if (entry && !existsSync(path.join(distDir, safeRelativePath(entry, `${plugin.id}:${label}`)))) {
+      throw new Error(`插件 ${plugin.id}:${label} 指向不存在的部署资源:${entry}`)
+    }
+  }
 }
 
 writeFileSync(path.join(distDir, 'registry.json'), JSON.stringify(registry, null, 2))
