@@ -48,21 +48,68 @@ function NetworkIcon(): React.JSX.Element {
   return <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="3.2" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="12.8" cy="3.4" r="1.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="12.8" cy="12.6" r="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="m4.5 7.3 6.9-3.2M4.5 8.7l6.9 3.2" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round"/></svg>
 }
 
-function Sparkline({ history, field, color, label }: { history: MetricHistoryPoint[]; field: 'cpuPercent' | 'memoryPercent'; color: string; label: string }): React.JSX.Element {
+interface CurvePoint { x: number; y: number }
+
+function curvePath(points: CurvePoint[]): string {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
+  let path = `M ${points[0].x} ${points[0].y}`
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const before = points[index - 1] ?? points[index]
+    const start = points[index]
+    const end = points[index + 1]
+    const after = points[index + 2] ?? end
+    const control1 = { x: start.x + (end.x - before.x) / 6, y: start.y + (end.y - before.y) / 6 }
+    const control2 = { x: end.x - (after.x - start.x) / 6, y: end.y - (after.y - start.y) / 6 }
+    path += ` C ${control1.x} ${control1.y}, ${control2.x} ${control2.y}, ${end.x} ${end.y}`
+  }
+  return path
+}
+
+function niceCeiling(value: number): number {
+  if (value <= 10) return Math.max(1, Math.ceil(value))
+  if (value <= 50) return Math.ceil(value / 5) * 5
+  return Math.ceil(value / 10) * 10
+}
+
+function niceFloor(value: number): number {
+  if (value <= 10) return Math.floor(value)
+  if (value <= 50) return Math.floor(value / 5) * 5
+  return Math.floor(value / 10) * 10
+}
+
+function Sparkline({ history, field, color, label, autoScale = false }: { history: MetricHistoryPoint[]; field: 'cpuPercent' | 'memoryPercent'; color: string; label: string; autoScale?: boolean }): React.JSX.Element {
   const values = history.map((point) => point[field]).filter((value): value is number => value !== null)
   if (values.length < 2) return <div className="chart-empty">等待第二个采样点</div>
-  const points = history.map((point, index) => {
-    const value = point[field]
-    return value === null ? null : `${(index / Math.max(1, history.length - 1)) * 100},${36 - (Math.max(0, Math.min(100, value)) / 100) * 30 - 3}`
-  }).filter((point): point is string => point !== null)
+  const rawMax = Math.max(...values)
+  const rawMin = Math.min(...values)
+  const axisMax = autoScale ? Math.min(100, niceCeiling(rawMax * 1.2)) : 100
+  const axisMin = autoScale ? Math.max(0, niceFloor(rawMin * .8)) : 0
+  const axisRange = Math.max(1, axisMax - axisMin)
+  const points = values.map((value, index) => {
+    return {
+      x: 2 + (index / Math.max(1, values.length - 1)) * 96,
+      y: 4 + (1 - Math.max(0, Math.min(axisMax, value) - axisMin) / axisRange) * 32
+    }
+  })
+  const line = curvePath(points)
+  const last = points[points.length - 1]
+  const horizonSeconds = Math.max(0, (values.length - 1) * 3)
   return (
-    <svg className="sparkline" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`${label}趋势`}>
-      <line className="sparkline-grid" x1="0" y1="3" x2="100" y2="3" />
-      <line className="sparkline-grid" x1="0" y1="18" x2="100" y2="18" />
-      <line className="sparkline-grid" x1="0" y1="33" x2="100" y2="33" />
-      <polyline className="sparkline-line" points={points.join(' ')} stroke={color} />
-      <circle className="sparkline-point" cx={points[points.length - 1].split(',')[0]} cy={points[points.length - 1].split(',')[1]} r="2" stroke={color} />
-    </svg>
+    <>
+      <div className="chart-plot">
+        <svg className="sparkline" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label={`${label}趋势`}>
+          <title>{label}最近 {horizonSeconds} 秒趋势</title>
+          <line className="sparkline-grid" x1="2" y1="4" x2="98" y2="4" />
+          <line className="sparkline-grid" x1="2" y1="20" x2="98" y2="20" />
+          <line className="sparkline-grid" x1="2" y1="36" x2="98" y2="36" />
+          <path className="sparkline-line" d={line} stroke={color} />
+          <circle className="sparkline-point-halo" cx={last.x} cy={last.y} r="2.7" fill={color} />
+          <circle className="sparkline-point" cx={last.x} cy={last.y} r="1.35" stroke={color} />
+        </svg>
+      </div>
+      <div className="chart-axis" aria-hidden="true"><span>{horizonSeconds > 0 ? `过去 ${horizonSeconds} 秒` : '最近'}</span><span>现在</span></div>
+    </>
   )
 }
 
@@ -169,7 +216,7 @@ function ServerMonitorPanel({ sessionId, active = true }: { sessionId: string; a
             <div className="monitor-panel-body">
               <div className="metric-layout">
                 <div><div className="metric-number">{formatPercent(snapshot.cpu.usagePercent)}<small>使用率</small></div><div className="metric-caption">{snapshot.cpu.sampleStatus === 'ready' ? '最近采样' : '等待下一次采样'}</div>{snapshot.cpu.usagePercent !== null && <MetricBar value={snapshot.cpu.usagePercent} label="CPU 使用率" />}</div>
-                <div className="chart-wrap"><div className="chart-label"><span>使用率趋势</span><strong>最近 {history.length} 次</strong></div><Sparkline history={history} field="cpuPercent" color="var(--monitor-accent)" label="CPU 使用率" /></div>
+                <div className="chart-wrap"><div className="chart-label"><span>使用率趋势</span><strong>最近 {history.length} 次</strong></div><Sparkline history={history} field="cpuPercent" color="var(--monitor-accent)" label="CPU 使用率" autoScale /></div>
               </div>
               <div className="load-row"><span className="load-label">系统负载</span><div className="load-values"><span><b>1m</b>{formatLoad(snapshot.cpu.load1)}</span><span><b>5m</b>{formatLoad(snapshot.cpu.load5)}</span><span><b>15m</b>{formatLoad(snapshot.cpu.load15)}</span></div></div>
             </div>
