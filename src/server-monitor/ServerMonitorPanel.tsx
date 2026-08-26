@@ -86,30 +86,43 @@ function Sparkline({ history, field, color, label, autoScale = false }: { histor
   const axisMax = autoScale ? Math.min(100, niceCeiling(rawMax * 1.2)) : 100
   const axisMin = autoScale ? Math.max(0, niceFloor(rawMin * .8)) : 0
   const axisRange = Math.max(1, axisMax - axisMin)
+  const plot = { left: 1, right: 99, top: 3, bottom: 43 }
+  const axisMid = axisMin + axisRange / 2
   const points = values.map((value, index) => {
     return {
-      x: 2 + (index / Math.max(1, values.length - 1)) * 96,
-      y: 4 + (1 - Math.max(0, Math.min(axisMax, value) - axisMin) / axisRange) * 32
+      x: plot.left + (index / Math.max(1, values.length - 1)) * (plot.right - plot.left),
+      y: plot.top + (1 - Math.max(0, Math.min(axisMax, value) - axisMin) / axisRange) * (plot.bottom - plot.top)
     }
   })
   const line = curvePath(points)
-  const last = points[points.length - 1]
+  const area = `${line} L ${plot.right} ${plot.bottom} L ${plot.left} ${plot.bottom} Z`
   const horizonSeconds = Math.max(0, (values.length - 1) * 3)
+  const gradientId = `server-monitor-${field}-area`
+  const formatAxisValue = (value: number) => `${Math.round(value)}%`
   return (
-    <>
-      <div className="chart-plot">
-        <svg className="sparkline" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label={`${label}趋势`}>
-          <title>{label}最近 {horizonSeconds} 秒趋势</title>
-          <line className="sparkline-grid" x1="2" y1="4" x2="98" y2="4" />
-          <line className="sparkline-grid" x1="2" y1="20" x2="98" y2="20" />
-          <line className="sparkline-grid" x1="2" y1="36" x2="98" y2="36" />
-          <path className="sparkline-line" d={line} stroke={color} />
-          <circle className="sparkline-point-halo" cx={last.x} cy={last.y} r="2.7" fill={color} />
-          <circle className="sparkline-point" cx={last.x} cy={last.y} r="1.35" stroke={color} />
+    <div className="chart-plot">
+      <div className="chart-y-axis" aria-hidden="true"><span>{formatAxisValue(axisMax)}</span><span>{formatAxisValue(axisMid)}</span><span>{formatAxisValue(axisMin)}</span></div>
+      <div className="chart-surface">
+        <svg className="sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" role="img" aria-label={`${label}趋势`}>
+        <title>{label}最近 {horizonSeconds} 秒趋势，纵轴 {formatAxisValue(axisMin)} 至 {formatAxisValue(axisMax)}</title>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity=".24" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path className="sparkline-area" d={area} fill={`url(#${gradientId})`} />
+        <line className="sparkline-grid" x1={plot.left} y1={plot.top} x2={plot.right} y2={plot.top} />
+        <line className="sparkline-grid" x1={plot.left} y1={plot.top + (plot.bottom - plot.top) / 2} x2={plot.right} y2={plot.top + (plot.bottom - plot.top) / 2} />
+        <line className="sparkline-grid" x1={plot.left} y1={plot.bottom} x2={plot.right} y2={plot.bottom} />
+        <line className="sparkline-grid vertical" x1={plot.left + (plot.right - plot.left) / 2} y1={plot.top} x2={plot.left + (plot.right - plot.left) / 2} y2={plot.bottom} />
+        <line className="sparkline-axis-line" x1={plot.left} y1={plot.top} x2={plot.left} y2={plot.bottom} />
+        <line className="sparkline-axis-line" x1={plot.left} y1={plot.bottom} x2={plot.right} y2={plot.bottom} />
+        <path className="sparkline-line" d={line} stroke={color} />
         </svg>
       </div>
-      <div className="chart-axis" aria-hidden="true"><span>{horizonSeconds > 0 ? `过去 ${horizonSeconds} 秒` : '最近'}</span><span>现在</span></div>
-    </>
+      <div className="chart-x-axis" aria-hidden="true"><span>{horizonSeconds > 0 ? `过去 ${horizonSeconds} 秒` : '最近'}</span><span>{horizonSeconds > 0 ? `过去 ${Math.round(horizonSeconds / 2)} 秒` : ''}</span><span>现在</span></div>
+    </div>
   )
 }
 
