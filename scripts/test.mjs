@@ -49,6 +49,76 @@ test('面板布局字段只能使用宿主契约', () => {
   }
 })
 
+test('server-monitor 样式保持在插件根节点且不逃逸宿主', async () => {
+  const { getServerMonitorStyles } = await import('../src/server-monitor/inject-styles.ts')
+  const css = getServerMonitorStyles()
+  assert.match(css, /^@scope \(\.server-monitor\) \{/, '最终样式必须由浏览器限制在插件根节点')
+  assert.match(css, /:scope\{[^}]*display:flex/, '插件根节点必须填满并保持纵向布局')
+  assert.doesNotMatch(css, /transition:\s*all\b/, '禁止 transition: all')
+  assert.doesNotMatch(css, /(?:^|[,{])\s*(?:body|:root|#root)\b/m, '禁止覆盖宿主全局节点')
+  assert.doesNotMatch(css, /position:\s*fixed\b/, '插件不得使用 fixed 逃逸宿主内容区')
+})
+
+test('server-monitor 计算网络速率与短期趋势', async () => {
+  const { appendHistory, calculateNetworkRates, HISTORY_LIMIT } = await import('../src/server-monitor/metrics.ts')
+  const first = {
+    sampledAt: 1_000,
+    platform: 'linux',
+    cpu: { usagePercent: null, load1: 0, load5: 0, load15: 0, sampleStatus: 'insufficient-data' },
+    memory: { totalBytes: 100, usedBytes: 40, availableBytes: 60, usagePercent: 40, swapTotalBytes: 0, swapUsedBytes: 0, swapUsagePercent: 0 },
+    disks: [],
+    network: [{ interface: 'eth0', rxBytes: 1_000, txBytes: 2_000 }],
+    uptimeSeconds: 10
+  }
+  const second = { ...first, sampledAt: 4_000, cpu: { ...first.cpu, usagePercent: 50, sampleStatus: 'ready' }, memory: { ...first.memory, usagePercent: 55 }, network: [{ interface: 'eth0', rxBytes: 4_000, txBytes: 3_500 }] }
+  assert.deepEqual(calculateNetworkRates(first, second)[0], {
+    interface: 'eth0', rxBytesPerSecond: 1_000, txBytesPerSecond: 500, rxBytes: 4_000, txBytes: 3_500
+  })
+  let history = []
+  for (let i = 0; i < HISTORY_LIMIT + 4; i += 1) history = appendHistory(history, { ...second, sampledAt: 5_000 + i, memory: { ...second.memory, usagePercent: i } })
+  assert.equal(history.length, HISTORY_LIMIT)
+  assert.equal(history[0].memoryPercent, 4)
+})
+
+test('server-monitor 仅串行轮询并在面板隐藏时停止', async () => {
+  const { createSnapshotPoller, POLL_INTERVAL_MS } = await import('../src/server-monitor/polling.ts')
+  const timers = new Map()
+  let timerSequence = 0
+  let taskCalls = 0
+  const scheduler = {
+    setTimeout(callback, delayMs) {
+      assert.equal(delayMs, 3_000)
+      const id = ++timerSequence
+      timers.set(id, callback)
+      return id
+    },
+    clearTimeout(id) { timers.delete(id) }
+  }
+  const poller = createSnapshotPoller(async () => { taskCalls += 1 }, scheduler)
+  poller.start()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(taskCalls, 1, '启动时立即获取首个快照')
+  assert.equal(timers.size, 1, '完成后仅安排一个后续采样')
+  assert.equal(POLL_INTERVAL_MS, 3_000)
+  const next = [...timers.values()][0]
+  timers.clear()
+  next()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(taskCalls, 2)
+  assert.equal(timers.size, 1)
+  poller.stop()
+  assert.equal(timers.size, 0, '隐藏或卸载后清理后续采样')
+})
+
+test('server-monitor 将宿主约定状态作为可恢复状态处理', async () => {
+  const { isExpectedMonitorState, monitorStatusMessage } = await import('../src/server-monitor/status.ts')
+  for (const code of ['unsupported', 'timeout', 'rate-limited', 'insufficient-data']) {
+    assert.equal(isExpectedMonitorState(code), true, `${code} 应作为正常状态处理`)
+    assert.ok(monitorStatusMessage(code), `${code} 需要明确的用户提示`)
+  }
+  assert.equal(isExpectedMonitorState('parse-error'), false, '不可恢复的解析错误需要错误状态')
+})
+
 test('mysql-manager 样式不逃逸插件根节点', async () => {
   const { getMysqlManagerStyles } = await import('../src/mysql-manager/inject-styles.ts')
   const css = getMysqlManagerStyles()
