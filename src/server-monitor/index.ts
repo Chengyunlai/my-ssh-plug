@@ -11,6 +11,7 @@ export default definePlugin({
   description: '监控当前 SSH 会话服务器的 CPU、内存、磁盘、网络与运行时间',
   author: 'MySSH',
   category: 'monitor',
+  minAppVersion: '1.3.2',
   builtin: false,
   defaultEnabled: false,
   panel: {
