@@ -11,6 +11,25 @@ const srcDir = path.join(root, 'src')
 const CATEGORIES = new Set(['terminal', 'files', 'tool', 'monitor', 'integration', 'other'])
 const SEMVER = /^\d+\.\d+\.\d+$/
 
+test('官方插件提供独立的声明式终端入口，命令数据保持唯一来源', () => {
+  for (const [id, kind] of [['command-book', 'commands'], ['mysql-manager', 'mysql'], ['server-monitor', 'monitor'], ['wsl-terminal', 'wsl']]) {
+    const directory = path.join(srcDir, id)
+    const manifest = JSON.parse(readFileSync(path.join(directory, 'manifest.json'), 'utf8'))
+    assert.equal(manifest.tui.kind, 'tui-declarative-v1')
+    assert.equal(manifest.tui.minAppVersion, '1.5.0')
+    assert.equal(manifest.tui.entry, 'terminal.json')
+    const descriptor = JSON.parse(readFileSync(path.join(directory, manifest.tui.source), 'utf8'))
+    assert.equal(descriptor.id, id)
+    assert.equal(descriptor.schema, 1)
+    assert.equal(descriptor.contributions[0].kind, kind)
+    if (kind === 'commands') {
+      assert.equal(descriptor.contributions[0].source, 'data.ts')
+      assert.ok(!descriptor.contributions[0].categories, '命令清单由既有 data.ts 生成，不能另存副本')
+    }
+    assert.ok(!descriptor.runtime && !descriptor.entry, '终端描述不运行外部 JavaScript')
+  }
+})
+
 test('插件清单字段完整且分类 / 版本合规', () => {
   const plugins = readdirSync(srcDir, { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(path.join(srcDir, d.name, 'manifest.json')))

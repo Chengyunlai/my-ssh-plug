@@ -10,9 +10,9 @@ MySSH 的插件市场仓库,与核心仓库([my-ssh](../my-ssh))独立维护、�
 
 | 插件 | id | 版本 | 分类 | 兼容 | 官方 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 命令手册 | `command-book` | 1.1.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 终端底部命令搜索条:100 条常用 Linux 命令,关键字匹配,点击复制 |
-| WSL 终端 | `wsl-terminal` | 1.0.1 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 在 MySSH 中打开本地 WSL/Ubuntu 终端(仅 Windows) |
-| 服务器监控 | `server-monitor` | 0.1.0 | 监控 | MySSH ≥ 1.3.2 | ✅ | 当前 SSH 会话的 CPU、内存、磁盘、网络与运行时间可视化监控 |
+| 命令手册 | `command-book` | 1.2.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 终端底部命令搜索条:100 条常用 Linux 命令,关键字匹配,点击复制 |
+| WSL 终端 | `wsl-terminal` | 1.1.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 在 MySSH 中打开本地 WSL/Ubuntu 终端(仅 Windows) |
+| 服务器监控 | `server-monitor` | 0.2.0 | 监控 | MySSH ≥ 1.3.2 | ✅ | 当前 SSH 会话的 CPU、内存、磁盘、网络与运行时间可视化监控 |
 
 ## 目录结构
 
@@ -89,3 +89,19 @@ https://chengyunlai.github.io/my-ssh-plug/registry.json
   仓库 `docs/PLUGIN.md` §5
 - 需要落盘的缓存 / 数据,通过核心 IPC 写入 `userData/plugins/<id>/`(核心设置页
   自动统计占用并可清理 / 卸载)
+
+## MySSH 1.5.0+ 终端入口
+
+四个官方插件均提供 `tui-declarative-v1` JSON：命令手册（1.2.0）、MySQL 管理器（1.2.0）、
+服务器监控（0.2.0）、WSL（1.1.0，仅 Windows）。现有 React ESM 入口与 Companion Runtime 继续供桌面使用。
+
+`manifest.json.tui` 声明 source/entry/minAppVersion，构建生成 `dist/<id>/terminal.json`，
+registry 单独写入 `tui.sha256`。命令手册从原 data.ts 生成，没有第二份命令清单。
+终端描述只能声明 commands/monitor/mysql/wsl；由 MySSH 终端宿主提供交互，不包含可执行 JS。
+
+TUI：插件 → 插件市场 → 安装 → 启用 → 打开。旧 MySSH 1.4.0 不识别这些入口。
+MySQL 终端界面由 MySSH Node Core 直接连接数据库，不启动 WebSocket 代理；
+连接与历史使用主密码加密 vault，独立于桌面存储。WSL 终端读取系统实际列表；桌面旧 WSL 页面仍是模拟界面。
+
+关联主仓库 [Issue #32](https://github.com/Chengyunlai/my-ssh/issues/32)。终端 JSON 的 sha256 与 React entry/runtime hash 分别校验，
+不修改旧桌面兼容区间。发布仍需本仓库 CI、生成的资源合同与 Pages 部署完成。

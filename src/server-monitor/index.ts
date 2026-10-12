@@ -7,7 +7,7 @@ injectStyles()
 export default definePlugin({
   id: 'server-monitor',
   name: '服务器监控',
-  version: '0.1.0',
+  version: '0.2.0',
   description: '监控当前 SSH 会话服务器的 CPU、内存、磁盘、网络与运行时间',
   author: 'MySSH',
   category: 'monitor',

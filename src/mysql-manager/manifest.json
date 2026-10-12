@@ -1,7 +1,7 @@
 {
   "id": "mysql-manager",
   "name": "MySQL 管理器",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MySQL数据库管理工具:连接管理、表结构查看、SQL查询执行",
   "author": "MySSH",
   "category": "tool",
@@ -21,5 +21,11 @@
     "scope": "app",
     "layout": "workspace",
     "Component": "MySqlManager"
+  },
+  "tui": {
+    "kind": "tui-declarative-v1",
+    "source": "terminal.json",
+    "entry": "terminal.json",
+    "minAppVersion": "1.5.0"
   }
 }

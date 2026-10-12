@@ -31,6 +31,10 @@ export interface MySshPlugin {
     transport: 'websocket'
     lifecycle?: 'on-demand' | 'always'
   }
+  tui?: {
+    kind: 'tui-declarative-v1'
+    minAppVersion: string
+  }
   panel?: {
     title: string
     scope?: 'app' | 'session'
