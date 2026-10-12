@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "id": "command-book",
+  "contributions": [
+    {
+      "kind": "commands",
+      "source": "data.ts"
+    }
+  ]
+}

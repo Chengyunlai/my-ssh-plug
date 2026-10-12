@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { build } from 'esbuild'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const srcDir = path.join(root, 'src')
@@ -60,6 +61,11 @@ function validateManifest(id, m) {
     safeRelativePath(m.runtime.entry, `${id}:runtime.entry`)
     safeRelativePath(m.runtime.source, `${id}:runtime.source`)
   }
+  if (m.tui) {
+    if (m.tui.kind !== 'tui-declarative-v1' || !SEMVER.test(m.tui.minAppVersion)) throw new Error(`${id}: 终端协议或最低版本无效`)
+    safeRelativePath(m.tui.source, `${id}:tui.source`)
+    safeRelativePath(m.tui.entry, `${id}:tui.entry`)
+  }
 }
 
 for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
@@ -93,6 +99,25 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
   validateManifest(id, manifest)
   const entryBuf = readFileSync(outFile)
   let runtime
+  let tui
+  if (manifest.tui) {
+    const descriptor = JSON.parse(readFileSync(path.join(srcDir, id, safeRelativePath(manifest.tui.source, `${id}:tui.source`)), 'utf8'))
+    if (descriptor.schema !== 1 || descriptor.id !== id || !Array.isArray(descriptor.contributions)) throw new Error(`${id}: 终端描述无效`)
+    for (const item of descriptor.contributions) {
+      if (item.kind === 'commands') {
+        const output = await build({ entryPoints: [path.join(srcDir, id, safeRelativePath(item.source, `${id}:commands.source`))], bundle: true, platform: 'node', format: 'esm', write: false })
+        const { categories } = await import('data:text/javascript;base64,' + Buffer.from(output.outputFiles[0].text).toString('base64'))
+        item.categories = categories.map((category) => ({ name: category.name, commands: category.commands.map((command) => ({ command: command.cmd, description: command.desc, ...(command.example ? { example: command.example } : {}) })) }))
+        delete item.source
+      } else if (!['monitor', 'mysql', 'wsl'].includes(item.kind)) throw new Error(`${id}: 不支持的终端贡献`)
+    }
+    const terminalBytes = Buffer.from(JSON.stringify(descriptor))
+    const terminalEntry = safeRelativePath(manifest.tui.entry, `${id}:tui.entry`)
+    const terminalOutput = path.join(distDir, id, terminalEntry)
+    mkdirSync(path.dirname(terminalOutput), { recursive: true })
+    writeFileSync(terminalOutput, terminalBytes)
+    tui = { kind: manifest.tui.kind, entry: `${id}/${terminalEntry}`, sha256: createHash('sha256').update(terminalBytes).digest('hex'), minAppVersion: manifest.tui.minAppVersion }
+  }
   if (manifest.runtime) {
     const runtimeSource = safeRelativePath(manifest.runtime.source, `${id}:runtime.source`)
     if (!runtimeSource || !manifest.runtime.entry) {
@@ -126,6 +151,7 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
   registry.plugins.push({
     ...manifest,
     ...(runtime ? { runtime } : {}),
+    ...(tui ? { tui } : {}),
     official: isOfficial(id, manifest.author),
     entry: `${id}/entry.js`,
     sha256: createHash('sha256').update(entryBuf).digest('hex')
@@ -137,7 +163,8 @@ for (const dir of readdirSync(srcDir, { withFileTypes: true })) {
 for (const plugin of registry.plugins) {
   for (const [label, entry] of [
     ['entry', plugin.entry],
-    ['runtime.entry', plugin.runtime?.entry]
+    ['runtime.entry', plugin.runtime?.entry],
+    ['tui.entry', plugin.tui?.entry]
   ]) {
     if (entry && !existsSync(path.join(distDir, safeRelativePath(entry, `${plugin.id}:${label}`)))) {
       throw new Error(`插件 ${plugin.id}:${label} 指向不存在的部署资源:${entry}`)
