@@ -10,6 +10,7 @@ MySSH 的插件市场仓库,与核心仓库([my-ssh](../my-ssh))独立维护、�
 
 | 插件 | id | 版本 | 分类 | 兼容 | 官方 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MySQL 管理器 | `mysql-manager` | 1.3.0 | 效率工具 | MySSH ≥ 1.3.0；K8s 需新版宿主 | ✅ | MySQL 库表/SQL 与可选 Kubernetes 来源 |
 | 命令手册 | `command-book` | 1.2.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 终端底部命令搜索条:100 条常用 Linux 命令,关键字匹配,点击复制 |
 | WSL 终端 | `wsl-terminal` | 1.1.0 | 终端增强 | MySSH ≥ 0.1.0 | ✅ | 在 MySSH 中打开本地 WSL/Ubuntu 终端(仅 Windows) |
 | 服务器监控 | `server-monitor` | 0.2.0 | 监控 | MySSH ≥ 1.3.2 | ✅ | 当前 SSH 会话的 CPU、内存、磁盘、网络与运行时间可视化监控 |

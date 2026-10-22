@@ -7,6 +7,7 @@ interface Connection {
   password: string
   database?: string
   proxyUrl?: string
+  kubernetesTargetId?: string
 }
 
 type QueryRow = unknown[] | Record<string, unknown>
@@ -132,17 +133,18 @@ class MySQLClient {
   }
 
   async disconnect(): Promise<void> {
-    if (this.connectionId && this.ws) {
+    const socket = this.ws
+    if (this.connectionId && socket) {
       try {
         await this.sendRequest('disconnect', {
           connectionId: this.connectionId
-        })
+        }, socket)
       } catch (error) {
         console.error('断开连接失败:', error)
       }
     }
 
-    const socket = this.ws
+    if (this.ws !== socket) return
     this.ws = null
     this.connectionId = null
     this.pendingConnectReject?.(new Error('WebSocket连接已关闭'))

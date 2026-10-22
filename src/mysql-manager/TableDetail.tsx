@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import CellValue from './CellValue'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { mysqlClient, type QueryResult, type QueryRow } from './mysql-client'
+import { readTableStructure, tableStructureSql, type ColumnInfo } from './table-structure'
+import { commentDescription } from './relations'
 
 interface Props {
   db: string
@@ -9,13 +12,9 @@ interface Props {
   loading: boolean
 }
 
-interface ColumnInfo {
-  field: string
-  type: string
-  null: string
-  key: string
-  default: string | null
-  extra: string
+function StructureComment({ comment }: { comment: string }) {
+  const description = commentDescription(comment)
+  return <><span className={description ? 'structure-comment-text' : 'structure-comment-empty'}>{description || (comment ? '仅包含关联声明' : '未填写注释')}</span>{comment && description !== comment && <details className="structure-comment-raw"><summary>原始 COMMENT</summary><p>{comment}</p></details>}</>
 }
 
 interface IndexInfo { name: string; column: string; unique: string; type: string; cardinality: string }
@@ -23,6 +22,9 @@ interface ForeignKeyInfo { name: string; column: string; refTable: string; refCo
 
 export default function TableDetail({ db, table, activeTab, onTabChange, loading }: Props) {
   const [structure, setStructure] = useState<ColumnInfo[]>([])
+  const [tableComment, setTableComment] = useState('')
+  const [structureError, setStructureError] = useState('')
+  const structureRequest = useRef(0)
   const [content, setContent] = useState<QueryResult | null>(null)
   const [page, setPage] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
@@ -36,21 +38,18 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
   const pageSize = 50
 
   const loadStructure = useCallback(async () => {
-    const res = await mysqlClient.query(`DESCRIBE \`${table}\``)
-    if (!res.error) {
-      setStructure(res.rows.map(row => {
-        const arr = Array.isArray(row) ? row : Object.values(row)
-        return {
-          field: String(arr[0] ?? ''),
-          type: String(arr[1] ?? ''),
-          null: String(arr[2] ?? ''),
-          key: String(arr[3] ?? ''),
-          default: arr[4] != null ? String(arr[4]) : null,
-          extra: String(arr[5] ?? '')
-        }
-      }))
+    const request = ++structureRequest.current
+    setStructure([]); setTableComment(''); setStructureError('')
+    try {
+      const res = await mysqlClient.query(tableStructureSql(db, table))
+      if (request !== structureRequest.current) return
+      if (res.error) throw new Error(res.error)
+      const metadata = readTableStructure(res.rows)
+      setStructure(metadata.columns); setTableComment(metadata.tableComment)
+    } catch (reason) {
+      if (request === structureRequest.current) setStructureError(reason instanceof Error ? reason.message : '无法读取表结构')
     }
-  }, [table])
+  }, [db, table])
 
   const loadIndexes = useCallback(async () => {
     const res = await mysqlClient.query(`SHOW INDEX FROM \`${table}\``)
@@ -85,6 +84,7 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
 
   useEffect(() => {
     if (activeTab === 'structure' || (activeTab === 'content' && structure.length === 0)) loadStructure()
+    return () => { structureRequest.current++ }
   }, [activeTab, loadStructure])
 
   useEffect(() => {
@@ -166,21 +166,23 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
 
       {activeTab === 'structure' && (
         <div className="tab-content">
+          {structureError ? <div className="structure-description" role="alert">{structureError}</div> : <div className="structure-description"><strong>表说明</strong><StructureComment comment={tableComment} /></div>}
           <div className="structure-switcher">
             <button className={structureView === 'columns' ? 'active' : ''} onClick={() => setStructureView('columns')}>字段 <span>{structure.length}</span></button>
             <button className={structureView === 'indexes' ? 'active' : ''} onClick={() => setStructureView('indexes')}>索引 <span>{indexes.length}</span></button>
             <button className={structureView === 'foreignKeys' ? 'active' : ''} onClick={() => setStructureView('foreignKeys')}>外键 <span>{foreignKeys.length}</span></button>
           </div>
-          {structureView === 'columns' && <table className="result-table">
+          {structureView === 'columns' && <table className="result-table structure-columns">
             <thead>
               <tr>
-                <th>字段</th><th>类型</th><th>Null</th><th>键</th><th>默认值</th><th>额外</th>
+                <th>字段</th><th>注释</th><th>类型</th><th>Null</th><th>键</th><th>默认值</th><th>额外</th>
               </tr>
             </thead>
             <tbody>
               {structure.map((col, i) => (
                 <tr key={i}>
                   <td><span className="col-name">{col.field}</span></td>
+                  <td className="structure-comment"><StructureComment comment={col.comment} /></td>
                   <td><span className="col-type">{col.type}</span></td>
                   <td>{col.null}</td>
                   <td>{col.key && <span className={`key-badge ${col.key === 'PRI' ? 'pri' : col.key === 'MUL' ? 'mul' : 'uni'}`}>{col.key}</span>}</td>
@@ -232,7 +234,7 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
                           const val = getCellValue(row, ci)
                           const isEditing = editCell?.row === ri && editCell?.col === ci
                           return (
-                            <td key={ci} onDoubleClick={() => setEditCell({ row: ri, col: ci, value: val === null ? 'NULL' : String(val) })}>
+                            <td key={ci} onDoubleClick={() => { if (val === null || typeof val !== 'object') setEditCell({ row: ri, col: ci, value: val === null ? 'NULL' : String(val) }) }}>
                               {isEditing ? (
                                 <input
                                   className="cell-input"
@@ -245,7 +247,7 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
                               ) : val === null ? (
                                 <span className="null-value">NULL</span>
                               ) : (
-                                String(val)
+                                <CellValue value={val} field={content.columns[ci]} row={ri + 1 + page * pageSize} />
                               )}
                             </td>
                           )

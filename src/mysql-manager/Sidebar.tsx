@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronIcon, DatabaseIcon, QueryIcon, SearchIcon, TableIcon } from './Icons'
+import { ChevronIcon, DatabaseIcon, RelationIcon, QueryIcon, SearchIcon, TableIcon } from './Icons'
 
 interface Props {
   databases: string[]
@@ -9,11 +9,12 @@ interface Props {
   onSelectDb: (db: string) => void
   onSelectTable: (table: string) => void
   onQueryTable: (table: string) => void
+  onOpenRelations: () => void
 }
 
 export default function Sidebar({
   databases, selectedDb, tables, selectedTable,
-  onSelectDb, onSelectTable, onQueryTable
+  onSelectDb, onSelectTable, onQueryTable, onOpenRelations
 }: Props): React.JSX.Element {
   const [filter, setFilter] = useState('')
   const [databasesOpen, setDatabasesOpen] = useState(true)
@@ -33,9 +34,10 @@ export default function Sidebar({
             <button type="button" className={`database-item ${selectedDb === db ? 'selected' : ''}`} onClick={() => { if (selectedDb === db) setTablesOpen(open => !open); else { onSelectDb(db); setTablesOpen(true) } }} aria-expanded={selectedDb === db ? tablesOpen : undefined}>
               <ChevronIcon open={selectedDb === db && tablesOpen} />
               <DatabaseIcon className="database-icon" />
-              <span className="database-name">{db}</span>
+              <span className="database-name" title={db}>{db}</span>
             </button>
             {selectedDb === db && <div className="database-children">
+              <button type="button" className="relations-entry" onClick={onOpenRelations}><RelationIcon /><span>逻辑关系</span><small>@ref</small></button>
               <button type="button" className="table-group-row" onClick={() => setTablesOpen(open => !open)} aria-expanded={tablesOpen} aria-controls={`mysql-table-tree-${db}`}>
                 <ChevronIcon open={tablesOpen} />
                 <TableIcon className="table-group-icon" />
@@ -59,7 +61,7 @@ export default function Sidebar({
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectTable(t) } }}
                   >
                     <TableIcon className="table-icon" />
-                    <span className="table-name">{t}</span>
+                    <span className="table-name" title={t}>{t}</span>
                     <button type="button" className="table-query-button" title="在查询中打开" aria-label={`在查询中打开 ${t}`} onClick={(e) => { e.stopPropagation(); onQueryTable(t) }}><QueryIcon /></button>
                   </div>
                 ))}

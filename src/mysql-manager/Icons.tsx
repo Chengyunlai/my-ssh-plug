@@ -43,3 +43,7 @@ export function TableIcon({ size = 14, className }: IconProps): React.JSX.Elemen
 export function ChevronIcon({ open, size = 13, className }: IconProps & { open: boolean }): React.JSX.Element {
   return <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d={open ? 'm3.5 6 4.5 4 4.5-4' : 'm6 3.5 4 4.5-4 4.5'} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
+
+export function RelationIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" /><rect x="15" y="15" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" /><path d="M6 9v7a2 2 0 0 0 2 2h7M9 6h7a2 2 0 0 1 2 2v7" stroke="currentColor" strokeWidth="1.6" /></svg>
+}

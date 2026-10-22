@@ -1,5 +1,6 @@
 // 发布前自动检查(CI 运行):清单字段、官方白名单、命令库数据
 import test from 'node:test'
+import './table-structure.test.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
@@ -214,7 +215,7 @@ test('WebSocket 已关闭时不会把新连接池留在注册表', async () => {
   assert.equal(socketConnections.size, 0)
 })
 
-test('旧 WebSocket 的关闭事件不会清空新连接', async () => {
+test('旧 WebSocket 的关闭和断开完成不会清空新连接', async () => {
   const { mysqlClient } = await import('../src/mysql-manager/mysql-client.ts')
   const nativeWebSocket = globalThis.WebSocket
 
@@ -279,6 +280,19 @@ test('旧 WebSocket 的关闭事件不会清空新连接', async () => {
 
     assert.equal((await first).message, 'WebSocket连接已关闭')
     assert.equal(await second, 'new-connection')
+    const disconnecting = mysqlClient.disconnect()
+    const third = mysqlClient.connect(connection)
+    const thirdSocket = FakeWebSocket.instances[2]
+    thirdSocket.open()
+    thirdSocket.message({ type: 'connected', id: thirdSocket.sent[0].id, payload: { connectionId: 'third-connection' } })
+    await disconnecting
+    assert.equal(await third, 'third-connection')
+    assert.equal(thirdSocket.readyState, FakeWebSocket.OPEN)
+    const query = mysqlClient.query('SELECT 1')
+    const request = thirdSocket.sent.at(-1)
+    assert.equal(request.type, 'query')
+    thirdSocket.message({ type: 'result', id: request.id, payload: { columns: ['one'], rows: [[1]] } })
+    assert.deepEqual((await query).rows, [[1]])
   } finally {
     for (const socket of FakeWebSocket.instances) socket.close()
     globalThis.WebSocket = nativeWebSocket
@@ -394,3 +408,19 @@ test('命令库数据:不少于 100 条且 cmd 唯一', () => {
   assert.ok(cmds.length >= 100, `命令条数不足:${cmds.length}`)
   assert.equal(new Set(cmds).size, cmds.length, '存在重复命令')
 })
+
+test('Kubernetes 连接拒绝远程代理和不支持的宿主，手动连接保持可用', async () => {
+  const { validateKubernetesConnection } = await import('../src/mysql-manager/kubernetes.ts')
+  assert.doesNotThrow(() => validateKubernetesConnection({ host: 'localhost' }))
+  assert.throws(() => validateKubernetesConnection({ kubernetesTargetId: 'target' }), /升级宿主/)
+  assert.throws(() => validateKubernetesConnection({ kubernetesTargetId: 'target', proxyUrl: 'wss://example.invalid' }, {}), /本机代理/)
+  assert.doesNotThrow(() => validateKubernetesConnection({ kubernetesTargetId: 'target' }, {}))
+  assert.doesNotThrow(() => validateKubernetesConnection({ kubernetesTargetId: 'target', proxyUrl: 'ws://127.0.0.1:3000' }, {}))
+})
+
+import './cell-value.test.mjs'
+
+import './relations.test.mjs'
+
+import './relation-camera.test.mjs'
+import './relation-routing.test.mjs'

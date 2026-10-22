@@ -1,3 +1,5 @@
+import CellValue from './CellValue'
+import { csvCell, formatCellValue } from './cell-value'
 import { useState, useMemo } from 'react'
 import type { QueryRow } from './mysql-client'
 
@@ -22,7 +24,7 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
       const av = valueAt(a, sortCol), bv = valueAt(b, sortCol)
       if (av === null) return 1
       if (bv === null) return -1
-      const comparison = String(av).localeCompare(String(bv), undefined, { numeric: true })
+      const comparison = formatCellValue(av).localeCompare(formatCellValue(bv), undefined, { numeric: true })
       return sortDir === 'asc' ? comparison : -comparison
     })
   }, [rows, sortCol, sortDir])
@@ -40,8 +42,8 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
   }
 
   const exportCsv = () => {
-    const header = columns.join(',')
-    const csvRows = rows.map(row => columns.map((_, index) => valueAt(row, index)).map(c => c === null ? '' : String(c).includes(',') ? `"${String(c).replace(/"/g, '""')}"` : String(c)).join(','))
+    const header = columns.map(csvCell).join(',')
+    const csvRows = rows.map(row => columns.map((_, index) => csvCell(valueAt(row, index))).join(','))
     const blob = new Blob([[header, ...csvRows].join('\n')], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -87,7 +89,7 @@ export default function ResultTable({ columns, rows, affectedRows }: Props): Rea
                 {columns.map((_, ci) => {
                   const cell = valueAt(row, ci)
                   return (
-                  <td key={ci}>{cell === null ? <span className="null-value">NULL</span> : String(cell)}</td>
+                  <td key={ci}>{<CellValue value={cell} field={columns[ci]} row={ri + 1 + page * pageSize} />}</td>
                   )
                 })}
               </tr>
