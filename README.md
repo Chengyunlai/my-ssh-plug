@@ -26,6 +26,20 @@ MySSH 的插件市场仓库,与核心仓库([my-ssh](../my-ssh))独立维护、�
 
 使用与边界见 [MySQL 管理器](src/mysql-manager/README.md)，声明语法见 [COMMENT 逻辑关系](docs/mysql-logical-relations.md)。
 
+## 功能截图
+
+当前组件使用虚构的商店数据演示，不包含真实连接、账号、业务记录或内部库表。
+
+**表内容与复杂字段摘要**
+
+![MySQL 内容工作区](docs/screenshots/mysql-workspace.png)
+
+**COMMENT 逻辑关系画布**
+
+![逻辑关系画布与中文注释](docs/screenshots/mysql-relations.png)
+
+更多 [JSON 详情与 ENUM 展示](src/mysql-manager/README.md#复杂字段)。
+
 ## 安装
 
 在 MySSH「设置 → 插件市场」加载官方市场：
