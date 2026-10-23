@@ -1,5 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import CellValue from './CellValue'
+import { EnumValue, EnumEditor } from './EnumValue'
+import { enumOptions, enumUpdateSql } from './enum-column'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { mysqlClient, type QueryResult, type QueryRow } from './mysql-client'
+import { readTableStructure, tableStructureSql, type ColumnInfo } from './table-structure'
+import { commentDescription } from './relations'
 
 interface Props {
   db: string
@@ -9,13 +14,9 @@ interface Props {
   loading: boolean
 }
 
-interface ColumnInfo {
-  field: string
-  type: string
-  null: string
-  key: string
-  default: string | null
-  extra: string
+function StructureComment({ comment }: { comment: string }) {
+  const description = commentDescription(comment)
+  return <><span className={description ? 'structure-comment-text' : 'structure-comment-empty'}>{description || (comment ? '仅包含关联声明' : '未填写注释')}</span>{comment && description !== comment && <details className="structure-comment-raw"><summary>原始 COMMENT</summary><p>{comment}</p></details>}</>
 }
 
 interface IndexInfo { name: string; column: string; unique: string; type: string; cardinality: string }
@@ -23,6 +24,9 @@ interface ForeignKeyInfo { name: string; column: string; refTable: string; refCo
 
 export default function TableDetail({ db, table, activeTab, onTabChange, loading }: Props) {
   const [structure, setStructure] = useState<ColumnInfo[]>([])
+  const [tableComment, setTableComment] = useState('')
+  const [structureError, setStructureError] = useState('')
+  const structureRequest = useRef(0)
   const [content, setContent] = useState<QueryResult | null>(null)
   const [page, setPage] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
@@ -36,21 +40,18 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
   const pageSize = 50
 
   const loadStructure = useCallback(async () => {
-    const res = await mysqlClient.query(`DESCRIBE \`${table}\``)
-    if (!res.error) {
-      setStructure(res.rows.map(row => {
-        const arr = Array.isArray(row) ? row : Object.values(row)
-        return {
-          field: String(arr[0] ?? ''),
-          type: String(arr[1] ?? ''),
-          null: String(arr[2] ?? ''),
-          key: String(arr[3] ?? ''),
-          default: arr[4] != null ? String(arr[4]) : null,
-          extra: String(arr[5] ?? '')
-        }
-      }))
+    const request = ++structureRequest.current
+    setStructure([]); setTableComment(''); setStructureError('')
+    try {
+      const res = await mysqlClient.query(tableStructureSql(db, table))
+      if (request !== structureRequest.current) return
+      if (res.error) throw new Error(res.error)
+      const metadata = readTableStructure(res.rows)
+      setStructure(metadata.columns); setTableComment(metadata.tableComment)
+    } catch (reason) {
+      if (request === structureRequest.current) setStructureError(reason instanceof Error ? reason.message : '无法读取表结构')
     }
-  }, [table])
+  }, [db, table])
 
   const loadIndexes = useCallback(async () => {
     const res = await mysqlClient.query(`SHOW INDEX FROM \`${table}\``)
@@ -85,6 +86,7 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
 
   useEffect(() => {
     if (activeTab === 'structure' || (activeTab === 'content' && structure.length === 0)) loadStructure()
+    return () => { structureRequest.current++ }
   }, [activeTab, loadStructure])
 
   useEffect(() => {
@@ -105,14 +107,25 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
     if (activeTab === 'content') loadContent(page)
   }, [page, activeTab, loadContent])
 
-  const handleCellEdit = async (rowIdx: number, colName: string, newValue: string) => {
+  const handleCellEdit = async (rowIdx: number, colName: string, newValue: string | null, enumChoices?: string[]) => {
     if (!content) return
     const row = content.rows[rowIdx]
+    if (enumChoices) {
+      try {
+        const sql = enumUpdateSql(db, table, colName, newValue, structure, content.columns, row)
+        const result = await mysqlClient.query(sql)
+        if (result.error) throw new Error(result.error)
+        await loadContent(page)
+        setEditCell(null)
+      } catch (error) { alert(error instanceof Error ? error.message : '保存失败') }
+      return
+    }
     const pkCol = structure.find(c => c.key === 'PRI')
     if (!pkCol) { alert('表没有主键，无法编辑'); return }
     const pkIdx = structure.findIndex(c => c.key === 'PRI')
     const pkVal = Array.isArray(row) ? row[pkIdx] : Object.values(row)[pkIdx]
-    const sql = `UPDATE \`${table}\` SET \`${colName}\` = ${newValue === 'NULL' ? 'NULL' : `'${newValue.replace(/'/g, "\\'")}'`} WHERE \`${pkCol.field}\` = ${typeof pkVal === 'string' ? `'${pkVal.replace(/'/g, "\\'")}'` : pkVal}`
+    const literal = newValue === 'NULL' || newValue === null ? 'NULL' : `'${newValue.replace(/'/g, "\\'")}'`
+    const sql = `UPDATE \`${table}\` SET \`${colName}\` = ${literal} WHERE \`${pkCol.field}\` = ${typeof pkVal === 'string' ? `'${pkVal.replace(/'/g, "\\'")}'` : pkVal}`
     const res = await mysqlClient.query(sql)
     if (res.error) alert(res.error)
     else loadContent(page)
@@ -166,21 +179,23 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
 
       {activeTab === 'structure' && (
         <div className="tab-content">
+          {structureError ? <div className="structure-description" role="alert">{structureError}</div> : <div className="structure-description"><strong>表说明</strong><StructureComment comment={tableComment} /></div>}
           <div className="structure-switcher">
             <button className={structureView === 'columns' ? 'active' : ''} onClick={() => setStructureView('columns')}>字段 <span>{structure.length}</span></button>
             <button className={structureView === 'indexes' ? 'active' : ''} onClick={() => setStructureView('indexes')}>索引 <span>{indexes.length}</span></button>
             <button className={structureView === 'foreignKeys' ? 'active' : ''} onClick={() => setStructureView('foreignKeys')}>外键 <span>{foreignKeys.length}</span></button>
           </div>
-          {structureView === 'columns' && <table className="result-table">
+          {structureView === 'columns' && <table className="result-table structure-columns">
             <thead>
               <tr>
-                <th>字段</th><th>类型</th><th>Null</th><th>键</th><th>默认值</th><th>额外</th>
+                <th>字段</th><th>注释</th><th>类型</th><th>Null</th><th>键</th><th>默认值</th><th>额外</th>
               </tr>
             </thead>
             <tbody>
               {structure.map((col, i) => (
                 <tr key={i}>
                   <td><span className="col-name">{col.field}</span></td>
+                  <td className="structure-comment"><StructureComment comment={col.comment} /></td>
                   <td><span className="col-type">{col.type}</span></td>
                   <td>{col.null}</td>
                   <td>{col.key && <span className={`key-badge ${col.key === 'PRI' ? 'pri' : col.key === 'MUL' ? 'mul' : 'uni'}`}>{col.key}</span>}</td>
@@ -221,7 +236,11 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
                 <table className="result-table">
                   <thead>
                     <tr>
-                      {content.columns.map((c, i) => <th key={i}>{c}</th>)}
+                      {content.columns.map((c, i) => {
+                        const column = structure.find(column => column.field === c)
+                        const options = column ? enumOptions(column.type) : null
+                        return <th key={i} title={column?.comment}>{c}{options && <details className="enum-definition"><summary>ENUM · {options.length}</summary><div><strong>{c} 的可选值</strong>{column?.comment && <p>{commentDescription(column.comment)}</p>}<ul>{options.map((option, index) => <li key={index}><EnumValue value={option} options={options} comment="" /></li>)}</ul><small>{column?.null === 'YES' ? '允许 NULL' : '不允许 NULL'} · 双击单元格编辑</small></div></details>}</th>
+                      })}
                       <th className="action-col">操作</th>
                     </tr>
                   </thead>
@@ -230,10 +249,12 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
                       <tr key={ri}>
                         {content.columns.map((_, ci) => {
                           const val = getCellValue(row, ci)
+                          const column = structure.find(column => column.field === content.columns[ci])
+                          const options = column ? enumOptions(column.type) : null
                           const isEditing = editCell?.row === ri && editCell?.col === ci
                           return (
-                            <td key={ci} onDoubleClick={() => setEditCell({ row: ri, col: ci, value: val === null ? 'NULL' : String(val) })}>
-                              {isEditing ? (
+                            <td key={ci} onDoubleClick={() => { if (val === null || typeof val !== 'object') setEditCell({ row: ri, col: ci, value: val === null ? 'NULL' : String(val) }) }}>
+                              {isEditing && options ? <EnumEditor value={val === null && editCell.value === 'NULL' ? null : editCell.value} options={options} nullable={column?.null === 'YES'} field={content.columns[ci]} onSave={value => handleCellEdit(ri, content.columns[ci], value, options)} onCancel={() => setEditCell(null)} /> : isEditing ? (
                                 <input
                                   className="cell-input"
                                   value={editCell.value}
@@ -244,8 +265,8 @@ export default function TableDetail({ db, table, activeTab, onTabChange, loading
                                 />
                               ) : val === null ? (
                                 <span className="null-value">NULL</span>
-                              ) : (
-                                String(val)
+                              ) : options ? <EnumValue value={String(val)} options={options} comment={commentDescription(column?.comment ?? '')} /> : (
+                                <CellValue value={val} field={content.columns[ci]} row={ri + 1 + page * pageSize} />
                               )}
                             </td>
                           )

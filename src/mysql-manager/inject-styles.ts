@@ -1,6 +1,17 @@
 const CSS = `
 :scope{height:100%;min-width:0;min-height:0;display:flex;font-family:var(--myssh-plugin-font-ui);font-size:13px;color:var(--myssh-plugin-text);background:var(--myssh-plugin-bg);--mysql-gutter:14px;--mysql-bg:var(--myssh-plugin-bg);--mysql-surface:var(--myssh-plugin-surface);--mysql-raised:var(--myssh-plugin-surface-raised);--mysql-hover:var(--myssh-plugin-surface-hover);--mysql-border:var(--myssh-plugin-border);--mysql-border-strong:var(--myssh-plugin-border-strong);--mysql-text:var(--myssh-plugin-text);--mysql-text-strong:var(--myssh-plugin-text-strong);--mysql-text-muted:var(--myssh-plugin-text-muted);--mysql-accent:var(--myssh-plugin-accent);--mysql-success:var(--myssh-plugin-success);--mysql-tab-active:color-mix(in srgb,var(--mysql-accent) 20%,var(--mysql-surface));--mysql-danger:var(--myssh-plugin-danger);--mysql-space-1:var(--myssh-plugin-space-1);--mysql-space-2:var(--myssh-plugin-space-2);--mysql-space-3:var(--myssh-plugin-space-3);--mysql-space-4:var(--myssh-plugin-space-4);--mysql-radius-sm:var(--myssh-plugin-radius-sm);--mysql-radius-md:var(--myssh-plugin-radius-md);--mysql-radius-lg:var(--myssh-plugin-radius-lg)}
 
+/* ENUM metadata uses neutral ordinal colors, never infers business meaning from names. */
+.enum-value{display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;padding:2px 8px;border:1px solid color-mix(in srgb,currentColor 25%,transparent);border-radius:4px;font-size:11px;line-height:18px;white-space:nowrap;background:color-mix(in srgb,currentColor 7%,transparent)}
+.enum-tone-0{color:#83b9e8}.enum-tone-1{color:#b8a6df}.enum-tone-2{color:#9bc6b2}.enum-tone-3{color:#d8bd8f}.enum-tone-4{color:#aab8c8}
+.enum-definition{display:inline-block;margin-left:8px;font-weight:400;vertical-align:middle}
+.enum-definition>summary{cursor:pointer;font-size:10px;color:var(--mysql-text-muted);border:1px solid var(--mysql-border);border-radius:4px;padding:2px 5px;list-style:none}
+.enum-definition>summary:focus-visible,.enum-editor select:focus-visible{outline:2px solid var(--mysql-accent);outline-offset:2px}
+.enum-definition>div{position:absolute;z-index:12;width:260px;max-height:260px;overflow:auto;white-space:normal;padding:12px;border:1px solid var(--mysql-border-strong);border-radius:6px;background:var(--mysql-surface);color:var(--mysql-text);box-shadow:0 8px 24px #0005;text-align:left}
+.enum-definition p{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.enum-definition ul{display:flex;flex-wrap:wrap;gap:6px;padding:0;list-style:none}.enum-definition small{color:var(--mysql-text-muted)}
+.enum-editor{display:flex;gap:6px;align-items:center;min-width:210px}
+.enum-editor select{max-width:220px;min-width:100px;background:var(--mysql-bg);color:var(--mysql-text);border:1px solid var(--mysql-accent);border-radius:4px;padding:5px;font:inherit;color-scheme:dark}
+
 /* Sidebar */
 .mysql-sidebar{width:260px;border-right:1px solid #2d2d2d;display:flex;flex-direction:column;background:#181818;overflow:hidden;flex-shrink:0}
 .mysql-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#1e1e1e}
@@ -196,6 +207,14 @@ const CSS = `
 .structure-switcher button.active{background:#214a62;color:#bde6f7}
 .structure-switcher button span{display:inline-flex;min-width:16px;justify-content:center;margin-left:4px;padding:1px 4px;border-radius:8px;background:#2d3941;color:#7e919c;font-size:10px}
 .structure-switcher button.active span{background:#336d89;color:#d8f3ff}
+.structure-description{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px 14px;padding:12px var(--mysql-gutter);border-bottom:1px solid var(--mysql-border);line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.structure-description>strong{flex-shrink:0;font-size:12px;color:var(--mysql-text-muted)}
+.structure-comment-text{color:var(--mysql-text);line-height:1.6}
+.structure-comment-empty{color:var(--mysql-text-muted);font-size:12px}
+.structure-columns td.structure-comment{min-width:240px;max-width:460px;width:36%;white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}
+.structure-comment-raw{margin-top:5px;font-size:11px;color:var(--mysql-text-muted);width:100%}
+.structure-comment-raw summary{cursor:pointer;white-space:nowrap}
+.structure-comment-raw p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .insert-row-panel{padding:12px 14px;background:#17232a;border-bottom:1px solid #2f5365}
 .insert-row-title{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;color:#d7e4eb;font-size:12px}
 .insert-row-title span{color:#7f929d;font-size:10px}
@@ -277,13 +296,214 @@ const CSS = `
 .object-tree .table-query-button svg{width:13px;height:13px}
 @media (max-width: 760px){.mysql-sidebar{width:230px}.workspace-product{display:none}.sql-editor-body textarea{height:90px}}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{transition-duration:0.01ms!important;animation-duration:0.01ms!important}}
+.mysql-sidebar{position:relative;min-width:220px;max-width:65%}
+.mysql-sidebar>.object-tree{width:100%;max-width:none;min-height:0;box-sizing:border-box}
+.mysql-main{min-width:0}
+.mysql-sidebar-resizer{position:absolute;right:0;top:0;bottom:0;width:7px;z-index:5;cursor:col-resize;touch-action:none;user-select:none}
+.mysql-sidebar-resizer:hover,.mysql-sidebar-resizer:focus-visible,.mysql-sidebar.resizing .mysql-sidebar-resizer{background:var(--mysql-accent,#58a6ff);outline:none}
+.mysql-sidebar.resizing{user-select:none}
+.json-viewer{min-width:0;max-width:100%;white-space:normal;text-align:left;border:1px solid var(--mysql-border);border-radius:6px;background:var(--mysql-bg);overflow:hidden}
+.json-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--mysql-border);font-size:11px;font-family:var(--myssh-plugin-font-ui)}
+.json-badge{color:var(--mysql-text-muted);font-size:10px;letter-spacing:.06em}
+.json-modes{display:flex;gap:2px}
+.json-toolbar button,.json-more{border:0;border-radius:4px;padding:3px 7px;background:transparent;color:var(--mysql-text-muted);font:inherit;cursor:pointer}
+.json-toolbar button[aria-pressed=true]{background:var(--mysql-tab-active);color:var(--mysql-accent)}
+.json-toolbar button:hover,.json-more:hover{background:var(--mysql-hover);color:var(--mysql-text-strong)}
+.json-copy{margin-left:auto}
+.json-body{padding:10px;max-height:360px;overflow:auto;font-family:var(--myssh-plugin-font-mono,monospace);font-size:12px;line-height:1.8;user-select:text}
+.json-node-toggle{display:flex;align-items:baseline;gap:0;max-width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere}
+.json-node-toggle:hover{background:var(--mysql-hover)}
+.json-chevron{width:16px;flex-shrink:0;color:var(--mysql-text-muted);user-select:none}
+.json-children{margin-left:7px;padding-left:16px;border-left:1px solid var(--mysql-border)}
+.json-leaf{padding-left:16px;overflow-wrap:anywhere;white-space:pre-wrap}
+.json-closing{padding-left:16px;color:var(--mysql-text-muted)}
+.json-key{color:var(--mysql-text-strong)}
+.json-string{color:#9acb9c}
+.json-number{color:#e7bc83}
+.json-boolean{color:#aeb9ef}
+.json-null,.json-punctuation{color:var(--mysql-text-muted)}
+.json-meta{margin-left:9px;font-size:10px;color:var(--mysql-text-muted);font-family:var(--myssh-plugin-font-ui);white-space:nowrap}
+.json-raw{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:var(--mysql-text)}
+.json-copy-status{padding:4px 10px;font-size:11px;color:var(--mysql-text-muted)}
+.json-viewer button:focus-visible,.json-raw:focus-visible{outline:2px solid var(--mysql-accent);outline-offset:-2px}
+
+.result-table td{vertical-align:top;height:36px;box-sizing:border-box}
+.json-cell-preview{display:inline-flex;align-items:center;gap:9px;max-width:100%;height:25px;padding:0 7px;border:1px solid var(--mysql-border);border-radius:4px;background:transparent;color:var(--mysql-text-muted);font:inherit;font-size:11px;white-space:nowrap;cursor:pointer}
+.json-cell-preview:hover{background:var(--mysql-hover);border-color:var(--mysql-accent);color:var(--mysql-text-strong)}
+.json-cell-symbol{font-family:monospace;color:var(--mysql-accent)}
+.json-cell-open{font-size:10px;color:var(--mysql-accent)}
+.json-inspector{position:absolute;inset:auto;margin:0;width:min(560px,calc(100vw - 24px));max-width:none;height:100dvh;max-height:none;padding:0;border:0;border-left:1px solid var(--mysql-border);background:var(--mysql-surface);color:var(--mysql-text);box-shadow:-16px 0 48px #0005;box-sizing:border-box}
+.json-inspector[open]{display:flex;flex-direction:column}
+.json-inspector::backdrop{background:#0003}
+.json-inspector.fullscreen{width:100vw}
+.json-inspector-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;border-bottom:1px solid var(--mysql-border);flex-shrink:0}
+.json-inspector-eyebrow{font-size:11px;color:var(--mysql-text-muted)}
+.json-inspector-header h3{margin:6px 0 0;font-size:18px;font-weight:600;color:var(--mysql-text-strong);overflow-wrap:anywhere}
+.json-inspector-actions{display:flex;gap:10px;flex-shrink:0}
+.json-inspector-actions button{border:1px solid var(--mysql-border);border-radius:5px;padding:5px 10px;background:transparent;color:var(--mysql-text);font:inherit;cursor:pointer}
+.json-inspector-actions button:hover{background:var(--mysql-hover)}
+.json-inspector>.json-viewer{border:0;border-radius:0;flex:1;min-height:0;display:flex;flex-direction:column}
+.json-inspector .json-toolbar{padding:12px 24px;flex-shrink:0}
+.json-inspector .json-body{max-height:none;flex:1;min-height:0;padding:20px 24px;font-size:13px;line-height:1.9}
+.json-inspector .json-node-toggle,.json-inspector .json-leaf{white-space:pre;overflow-wrap:normal}
+.json-search{margin:12px 24px 0;padding:8px 10px;border:1px solid var(--mysql-border);border-radius:5px;background:var(--mysql-bg);color:var(--mysql-text);font:inherit;font-size:12px;flex-shrink:0}
+.json-inspector-footer{padding:10px 24px;border-top:1px solid var(--mysql-border);font-size:11px;color:var(--mysql-text-muted);flex-shrink:0}
+.json-cell-preview:focus-visible,.json-inspector-actions button:focus-visible{outline:2px solid var(--mysql-accent);outline-offset:2px}
+
+:scope.relations-open>.mysql-sidebar{display:none}
+.relations-entry{display:flex;align-items:center;gap:var(--mysql-space-2);width:100%;padding:var(--mysql-space-2) calc(var(--mysql-space-4) + var(--mysql-space-2));border:0;background:transparent;color:var(--mysql-accent);font:inherit;font-size:12px;text-align:left;cursor:pointer}@media(hover:hover) and (pointer:fine){
+.relations-entry:hover{background:var(--mysql-hover)}}
+.relations-entry small{margin-left:auto;color:var(--mysql-text-muted);font-family:monospace;font-size:10px}
+.relations-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;background:var(--mysql-bg)}
+.relations-header{display:flex;align-items:center;justify-content:space-between;gap:var(--mysql-space-4);padding:calc(var(--mysql-space-4) + var(--mysql-space-1)) calc(var(--mysql-space-4) + var(--mysql-space-2)) var(--mysql-space-4);flex-shrink:0;border-bottom:1px solid var(--mysql-border)}
+.relations-eyebrow{font-size:10px;color:var(--mysql-text-muted);letter-spacing:.04em}
+.relations-header h2{display:flex;align-items:center;gap:var(--mysql-space-2);margin:var(--mysql-space-2) 0;font-size:20px;font-weight:600;color:var(--mysql-text-strong)}
+.relations-header h2 svg{color:var(--mysql-accent)}
+.relations-header p{margin:0;font-size:11px;color:var(--mysql-text-muted)}
+.relations-toolbar{display:flex;align-items:center;gap:var(--mysql-space-4);flex-wrap:wrap;padding:var(--mysql-space-2) calc(var(--mysql-space-4) + var(--mysql-space-2));background:var(--mysql-surface);border-bottom:1px solid var(--mysql-border);flex-shrink:0;font-size:11px}
+.relations-stat{color:var(--mysql-text-muted);white-space:nowrap}
+.relations-stat strong{font-weight:600;font-variant-numeric:tabular-nums;color:var(--mysql-text-strong);margin-right:var(--mysql-space-1)}
+.relations-validation{color:var(--mysql-success);font-size:11px}
+.relations-validation.warning,.relations-warning{color:var(--myssh-plugin-warning)}
+.relations-toolbar input{margin-left:auto;min-width:140px;flex:1;max-width:240px;padding:var(--mysql-space-2) var(--mysql-space-2);border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);background:var(--mysql-bg);color:var(--mysql-text);font:inherit;font-size:11px}
+.relations-zoom{display:flex;align-items:center;gap:var(--mysql-space-2);white-space:nowrap;color:var(--mysql-text-muted)}
+.relations-zoom button{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:26px;padding:0 var(--mysql-space-2);border:1px solid var(--mysql-border);background:transparent;color:var(--mysql-text);border-radius:var(--mysql-radius-sm);font:inherit;cursor:pointer}@media(hover:hover) and (pointer:fine){
+.relations-zoom button:hover{background:var(--mysql-hover)}}
+.relations-canvas{flex:1;min-height:260px;overflow:auto;position:relative;background-color:var(--mysql-bg);background-image:radial-gradient(var(--mysql-border) .7px,transparent .7px);background-size:18px 18px}
+.relations-canvas-size{position:relative;margin:auto}
+.relations-canvas-content{position:relative;transform-origin:top left}
+.relations-edges{position:absolute;inset:0;overflow:visible}
+.relation-edge{cursor:pointer;color:var(--mysql-text-muted);outline:none}
+.relation-edge-hit{fill:none;stroke:transparent;stroke-width:16}
+.relation-edge-line{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:5 4;pointer-events:none;opacity:.65}@media(hover:hover) and (pointer:fine){
+.relation-edge.selected,.relation-edge:hover,.relation-edge:focus-visible{color:var(--mysql-accent)}}@media(hover:hover) and (pointer:fine){
+.relation-edge.selected .relation-edge-line,.relation-edge:hover .relation-edge-line,.relation-edge:focus-visible .relation-edge-line{stroke-width:2.5;opacity:1;stroke-dasharray:none}}
+.relation-edge.invalid{color:var(--myssh-plugin-warning)}
+.relation-table{position:absolute;overflow:hidden;background:var(--mysql-surface);border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);box-sizing:border-box}
+.relation-table.highlighted{border-color:color-mix(in srgb,var(--mysql-accent) 70%,var(--mysql-border))}
+.relation-table header{display:flex;align-items:center;gap:var(--mysql-space-2);height:58px;padding:0 var(--mysql-space-3);border-bottom:1px solid var(--mysql-border);box-sizing:border-box}
+.relation-table header svg{color:var(--mysql-accent);flex-shrink:0}
+.relation-table header button{padding:0;border:0;background:transparent;color:var(--mysql-text-strong);font:inherit;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:left}@media(hover:hover) and (pointer:fine){
+.relation-table header button:hover{text-decoration:underline}}
+.relation-field{display:flex;align-items:center;gap:var(--mysql-space-2);height:30px;padding:0 var(--mysql-space-3);font-size:11px;box-sizing:border-box;color:var(--mysql-text)}
+.relation-field>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.relation-field code{margin-left:auto;color:var(--mysql-text-muted);font-size:10px;white-space:nowrap}
+.relation-field small{color:var(--mysql-text-muted);font-size:9px}
+.relation-field.selected{background:var(--mysql-tab-active);color:var(--mysql-accent)}
+.relation-field.missing{color:var(--myssh-plugin-warning)}
+.relations-lower{display:grid;grid-template-columns:minmax(200px,32%) minmax(0,1fr);min-height:180px;max-height:300px;border-top:1px solid var(--mysql-border);background:var(--mysql-surface);flex-shrink:0}
+.relations-list{overflow:auto;border-right:1px solid var(--mysql-border);padding:var(--mysql-space-2)}
+.relations-list>button{display:flex;align-items:flex-start;gap:var(--mysql-space-2);width:100%;padding:var(--mysql-space-2);border:0;border-radius:var(--mysql-radius-sm);background:transparent;color:var(--mysql-text);font:inherit;text-align:left;cursor:pointer}
+.relations-list>button.selected{background:var(--mysql-tab-active)}@media(hover:hover) and (pointer:fine){
+.relations-list>button:hover{background:var(--mysql-hover)}}
+.relations-list strong{display:block;font-size:11px;font-weight:500;overflow-wrap:anywhere}
+.relations-list small{display:block;margin-top:var(--mysql-space-1);font-size:10px;color:var(--mysql-text-muted);overflow-wrap:anywhere}
+.relation-field-label{color:var(--mysql-text-muted)}
+.relation-status-dot{flex-shrink:0;width:5px;height:5px;margin-top:var(--mysql-space-2);border-radius:50%;background:var(--myssh-plugin-warning)}
+.relation-status-dot.valid{background:var(--mysql-success)}
+.relation-detail{padding:calc(var(--mysql-space-4) + var(--mysql-space-1)) calc(var(--mysql-space-4) + var(--mysql-space-2));min-width:0;overflow:auto}
+.relation-detail-heading{display:flex;align-items:center;gap:var(--mysql-space-2);flex-wrap:wrap}
+.relation-source-badge{padding:var(--mysql-space-1) var(--mysql-space-2);border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);font-size:10px;color:var(--mysql-text-muted)}
+.relation-endpoints{display:flex;align-items:center;gap:var(--mysql-space-2);flex-wrap:wrap;margin:var(--mysql-space-4) 0;font-size:12px;color:var(--mysql-text-strong);overflow-wrap:anywhere}
+.relation-endpoints svg{color:var(--mysql-accent);flex-shrink:0}
+.relation-comment{font-size:11px;line-height:1.7;color:var(--mysql-text);overflow-wrap:anywhere}
+.relation-verification{font-size:10px;line-height:1.7;color:var(--mysql-text-muted)}
+.relation-detail-actions{display:flex;align-items:center;gap:var(--mysql-space-2);flex-wrap:wrap;margin-top:var(--mysql-space-4)}
+.relation-detail-actions [role=status]{font-size:10px;color:var(--mysql-text-muted)}
+.relations-diagnostics{padding:var(--mysql-space-2) calc(var(--mysql-space-4) + var(--mysql-space-2));font-size:11px;color:var(--myssh-plugin-warning)}
+.relations-state{margin:auto;padding:40px calc(var(--mysql-space-4) + var(--mysql-space-2));text-align:center;max-width:520px;color:var(--mysql-text-muted)}
+.relations-state>svg{color:var(--mysql-accent)}
+.relations-state h3{font-size:16px;font-weight:500;color:var(--mysql-text-strong)}
+.relations-state p{font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.relations-view button:focus-visible,.relations-view input:focus-visible,.relations-entry:focus-visible{outline:2px solid var(--mysql-accent);outline-offset:-2px}
+@media(max-width:900px){.relations-header{padding:var(--mysql-space-4) var(--mysql-space-4)}.relations-toolbar{padding:var(--mysql-space-2) var(--mysql-space-4);gap:var(--mysql-space-2)}.relations-lower{grid-template-columns:minmax(150px,35%) minmax(0,1fr)}.relation-detail{padding:var(--mysql-space-3)}.relations-header p{max-width:360px}}
+
+.relation-table header{flex-direction:column;align-items:stretch;justify-content:center;gap:var(--mysql-space-2)}
+.relation-table-title,.relation-field-title{display:flex;align-items:center;gap:var(--mysql-space-2);min-width:0}
+.relation-table-comment,.relation-field-comment{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mysql-text-muted);font-size:11px;line-height:14px}
+.relation-field{flex-direction:column;align-items:stretch;justify-content:center}
+.relation-field-title{line-height:18px;flex-shrink:0}
+.relation-field-title>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.relation-field-comment{font-size:10px;line-height:14px}
+.relation-field.selected .relation-field-comment{color:var(--mysql-text)}
+.relations-comments-toggle{border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);background:transparent;color:var(--mysql-text-muted);padding:var(--mysql-space-1) var(--mysql-space-2);font:inherit;font-size:11px;white-space:nowrap;cursor:pointer}
+.relations-comments-toggle[aria-pressed=true]{color:var(--mysql-accent);background:var(--mysql-tab-active)}
+.relation-comment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--mysql-space-4);margin:var(--mysql-space-3) 0}
+.relation-comment-grid h3{font-size:10px;font-weight:500;color:var(--mysql-text-muted);margin:0 0 var(--mysql-space-2)}
+.relation-comment-grid p{font-size:11px;line-height:1.7;margin:var(--mysql-space-1) 0;color:var(--mysql-text);white-space:pre-wrap;overflow-wrap:anywhere}
+.relation-comment-grid .relation-table-description{color:var(--mysql-text-strong)}
+.relation-raw-comment{font-size:10px;color:var(--mysql-text-muted);margin-top:var(--mysql-space-2)}
+.relation-raw-comment summary{cursor:pointer}
+.relation-raw-comment p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+@media(max-width:900px){.relation-comment-grid{grid-template-columns:minmax(0,1fr)}}
+
+.relations-canvas{overflow:hidden;cursor:grab;overscroll-behavior:contain}
+.relations-canvas-size{position:absolute;inset:0;margin:0;pointer-events:none}
+/* Let Chromium re-raster text/SVG at the current scale; persistent promotion retains blurry tiles. */
+.relations-canvas-content{position:absolute;left:0;top:0;pointer-events:auto;will-change:auto}
+.relations-canvas.is-panning,.relations-canvas.is-panning *{cursor:grabbing!important;user-select:none}
+.relations-canvas:focus-visible{outline:2px solid var(--mysql-accent);outline-offset:-2px}
+
+/* Canvas-first relationship workspace: independent components, optional inspector. */
+.relations-view{overflow:hidden}
+.relations-header{padding:12px 20px;gap:16px}
+.relations-header h2{font-size:16px;margin:0 0 4px}
+.relations-header h2 span{font-size:11px;font-weight:400;color:var(--mysql-text-muted);margin-left:8px}
+.relations-header p{font-size:10px}
+.relations-toolbar{padding:8px 20px;gap:12px}
+.relations-groups{display:flex;align-items:center;gap:6px;padding:9px 20px;overflow:auto;flex-shrink:0;background:var(--mysql-surface);border-bottom:1px solid var(--mysql-border)}
+.relations-groups>button{display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0;padding:7px 10px;border:1px solid transparent;border-radius:var(--mysql-radius-sm);background:transparent;color:var(--mysql-text-muted);font:inherit;font-size:11px;cursor:pointer}
+.relations-groups>button[aria-pressed=true]{background:var(--mysql-tab-active);border-color:color-mix(in srgb,var(--mysql-accent) 35%,transparent);color:var(--mysql-text-strong)}
+.relations-groups small,.relation-group-number{font-size:10px;color:var(--mysql-text-muted)}
+.relations-workspace{display:flex;position:relative;min-height:0;flex:1;overflow:hidden}
+.relations-workspace>.relations-canvas{min-height:0;min-width:0;flex:1}
+.relation-group-region{position:absolute;box-sizing:border-box;border:1px solid var(--mysql-border);border-radius:12px;background:color-mix(in srgb,var(--mysql-surface) 35%,transparent);pointer-events:none}
+.relation-group-region>div{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;padding:0 24px;border-bottom:1px solid color-mix(in srgb,var(--mysql-border) 55%,transparent)}
+.relation-group-region strong{font-size:13px;font-weight:500;color:var(--mysql-text-strong)}
+.relation-group-region span{font-size:11px;color:var(--mysql-text-muted)}
+.relations-canvas-caption{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;gap:12px;padding:10px 16px;font-size:10px;color:var(--mysql-text-muted);background:color-mix(in srgb,var(--mysql-bg) 90%,transparent);pointer-events:none}
+.relations-canvas.has-selection .relation-edge:not(.selected){opacity:.25}
+.relation-edge.selected{color:var(--mysql-accent)}
+.relation-edge.selected .relation-edge-line{stroke-width:2.5;opacity:1;stroke-dasharray:none}
+.relations-workspace>.relations-lower{display:flex;flex-direction:column;flex:0 0 360px;max-width:42%;min-height:0;max-height:none;border-top:0;border-left:1px solid var(--mysql-border);overflow:hidden}
+.relation-inspector-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--mysql-border);font-size:12px}
+.relation-inspector-header>div{display:flex;gap:6px}
+.relation-inspector-header button{padding:4px 6px;background:transparent;border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);color:var(--mysql-text-muted);font:inherit;font-size:10px;cursor:pointer}
+.relation-inspector-header button:disabled{opacity:.4;cursor:default}
+.relations-lower>.relations-list{flex:0 1 190px;min-height:76px;border-right:0;border-bottom:1px solid var(--mysql-border)}
+.relations-lower>.relation-detail{flex:1;padding:16px;min-height:0}
+.relations-lower .relation-comment-grid{grid-template-columns:minmax(0,1fr)}
+.relations-lower .relation-endpoints{font-size:11px;align-items:flex-start;flex-direction:column}
+.relations-lower .relation-detail-actions{position:sticky;bottom:-16px;padding:12px 0;margin-bottom:-16px;background:var(--mysql-surface)}
+.relation-inspector-empty{font-size:12px;line-height:1.7;color:var(--mysql-text-muted)}
+@media(max-width:1000px){.relations-validation{display:none}.relations-toolbar{gap:8px}.relations-toolbar input{max-width:180px}.relations-workspace>.relations-lower{flex-basis:320px;max-width:45%}.relations-canvas-caption>span:last-child{display:none}}
+@media(max-width:700px){.relations-header{padding:10px 12px}.relations-header p{display:none}.relations-toolbar,.relations-groups{padding-left:12px;padding-right:12px}.relations-workspace>.relations-lower{position:absolute;right:0;top:0;bottom:0;width:min(360px,100%);max-width:100%;z-index:5;box-shadow:-8px 0 24px #0003}.relations-stat{font-size:10px}.relations-toolbar input{max-width:none;min-width:100px}.relation-group-region strong{font-size:12px}}
+
+.relations-toolbar select{padding:6px 8px;border:1px solid var(--mysql-border);border-radius:var(--mysql-radius-sm);background:var(--mysql-bg);color:var(--mysql-text);font:inherit;font-size:11px}
+.relation-edge.mapping{color:var(--myssh-plugin-mapping,#b49bea)}
+.relation-edge.mapping .relation-edge-line{stroke-dasharray:2 7;stroke-width:2;opacity:.9}
+.relation-edge.mapping.selected .relation-edge-line{stroke-dasharray:2 7;stroke-width:3;opacity:1}
+.relation-edge.mapping.invalid{color:var(--myssh-plugin-warning)}
+.relation-mapping-label rect{fill:var(--mysql-surface);stroke:currentColor;stroke-width:1}
+.relation-mapping-label text{fill:currentColor;font-size:10px;font-family:inherit;pointer-events:none}
+.relation-edge-halo{fill:none;stroke:var(--mysql-bg);stroke-width:6;pointer-events:none;stroke-linejoin:round}
+.relation-edge-line{stroke-linejoin:round;stroke-linecap:round}
+.relation-edge.selected .relation-edge-halo{stroke-width:8}
+.relation-pair-branches path{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;pointer-events:none}
+.relations-export-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.relations-export-status{margin:0;padding:8px 20px;border-bottom:1px solid var(--mysql-border);color:var(--mysql-text-muted);font-size:12px}
+.relation-status-dot.mapping{border-radius:1px;background:var(--myssh-plugin-mapping,#b49bea)}
+.relation-mapping-notice{padding:10px 12px;border-left:2px solid var(--myssh-plugin-mapping,#b49bea);background:var(--mysql-bg);color:var(--mysql-text);font-size:11px;line-height:1.7}
+.relation-detail-actions button:disabled{opacity:.4;cursor:not-allowed}
+
 `
 
 let injected = false
 
 /** 交给 Chromium 原生 CSS 作用域处理，避免手写选择器解析器产生漏网规则。 */
 export function getMysqlManagerStyles(): string {
-  return `@scope (.mysql-manager) {${CSS}\n}`
+  return `@scope (.mysql-manager) {${CSS}\n}
+`
 }
 
 export function injectStyles(): void {
