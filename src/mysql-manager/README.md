@@ -1,10 +1,12 @@
-# MySQL 管理器
+<h1 align="center">MySQL 工作台</h1>
 
-在 MySSH 中浏览 MySQL 数据、理解表结构与逻辑关系，并分享可交互的结构文档。
+<p align="center">浏览数据，读懂结构，分享关联。</p>
 
-![使用虚构数据的 MySQL 工作区](../../docs/screenshots/mysql-workspace.png)
+<p align="center"><a href="#安装与连接">开始使用</a> · <a href="#复杂字段">JSON 与 ENUM</a> · <a href="#comment-逻辑关系">关系画布</a> · <a href="#导出交互式-html">HTML 导出</a></p>
 
-截图由当前组件与虚构数据生成，仅展示功能。
+![使用虚构数据的 MySQL 工作区](../../docs/screenshots/mysql-enum.png)
+
+MySSH 中的数据库工作区：把库表、查询结果、字段说明与逻辑关联连在一起。截图由当前组件与虚构数据生成。
 
 ## 数据浏览与查询
 
